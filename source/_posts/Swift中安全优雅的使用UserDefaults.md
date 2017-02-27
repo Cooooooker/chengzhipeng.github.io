@@ -1,15 +1,16 @@
 ---
 title: Swift中安全优雅的使用UserDefaults
 date: 2016-02-13
-tags:
+categories: Swift
+tags: [UserDefaults, Swift]
 ---
 纳尼? 如此简单的 UserDefaults 怎么去优雅的使用? 这么简单的还能玩出花来? 没毛病吧?
 
----
-
 Objective-C 中的 NSUserDefaults 我们并不陌生, 通常作为数据持久化的一种方式, 一般用来存储用户信息和基础配置信息. Swift 中使用 UserDefaults 来替代 NSUserDefaults, 两者的使用基本相同.
 
-```
+<!---more--->
+
+```Swift
 let defaults = UserDefaults.standard
 defaults.set(123, forKey: "defaultKey")
 defaults.integer(forKey: "defaultKey")
@@ -37,7 +38,7 @@ defaults.integer(forKey: "defaultKey")
 #### 常量保存字符串
 既然涉及到两个重复使用的字符串, 很容易就想到用常量保存字符串, 只有在初始化的时候设置 key 值, 存取的时候拿来用即可, 简单粗暴的方式.
 
-``` 
+``` Swift
 let defaultStand = UserDefaults.standard
 let defaultKey = "defaultKey"
 defaultStand.set(123, forKey: defaultKey)
@@ -49,7 +50,7 @@ defaultStand.integer(forKey: defaultKey)
 #### 分组存储
 分组存储 key 可以把存储数据按不同类别区分开, 代码的可读性和可维护性大大提升. 我们可以采用类class, 结构体struct, 枚举enum来进行分组存储 key, 下面使用结构体来示例.
 
-```
+```Swift
 // 账户信息
 struct AccountInfo {
     let userName = "userName"
@@ -72,7 +73,7 @@ struct SettingInfo {
 ```
 存取数据:
 
-```
+```Swift
 let defaultStand = UserDefaults.standard
 // 账户信息
 defaultStand.set("Chilli Cheng", forKey: AccountInfo().avatar)
@@ -92,7 +93,7 @@ let font = defaultStand.integer(forKey: SettingInfo().font)
 
 上面这种方式是不是比直接使用常量的效果更好? 但是仍然有个问题, 账户信息, 登录信息, 配置信息都是属于要存储的信息, 那我们就可以把这三类信息归到一个大类里, 在这个大类中有这三个小类, 三个小类作为大类的属性, 既能解决一致性问题, 又能解决上下文的问题, 需要存储到 UserDefaults 里面的数据, 我只需要去特定的类中找到对应分组里面的属性即可. 示例:
 
-```
+```Swift
 struct UserDefaultKeys {
     // 账户信息
     struct AccountInfo {
@@ -127,7 +128,7 @@ defaultStand.string(forKey: UserDefaultKeys.AccountInfo().userName)
 #### 避免初始化
 但是上面的代码存在一个明显的缺陷, 每次存取值的时候需要初始化 struct 出一个实例, 再访问这个实例的属性获取 key 值, 其实是不必要的, 怎么才能做到不初始化实例就能访问属性呢? 可以使用静态变量, 直接通过类型名字访问属性的值.
 
-```
+```Swift
 struct AccountInfo {
     static let userName = "userName"
     static let avatar = "avatar"
@@ -138,7 +139,7 @@ struct AccountInfo {
 ```
 存取的时候:
 
-```
+```Swift
 defaultStand.set("Chilli Cheng", forKey: UserDefaultKeys.AccountInfo.userName)
 defaultStand.string(forKey: UserDefaultKeys.AccountInfo.userName)
 ```
@@ -146,7 +147,7 @@ defaultStand.string(forKey: UserDefaultKeys.AccountInfo.userName)
 #### 枚举分组存储
 上面的方法虽然能基本满足要求, 但是仍然不完美, 我们依然需要手动去设置 key, 当 key 值很多的时候, 需要一个个的设置, 那有没有可以一劳永逸的办法呢? 不需要我们自己设置 key 的值, 让系统默认给我们设置好 key 的初始值, 我们直接拿 key 去进行存取数据. Swift这么好的语言当然可以实现, 即用枚举的方式, 枚举不仅可以分组设置 key, 还能默认设置 key 的原始值. 前提是我们需要遵守 String 协议, 不设置 rawValue 的时候, 系统会默认给我们的枚举 case 设置跟成员名字相同的原始值(rawValue), 我们就可以拿这个 rawValue 来作为存取数据的 key.
 
-```
+```Swift
 struct UserDefaultKeys {
     // 账户信息
     enum AccountInfo: String {
@@ -180,13 +181,13 @@ rawValue 的作用是因为我们使用枚举来存储 key, 就不需要去手�
 
 有了上面的一系列步骤, 解决第一个问题并不像刚开始一样使用简单的字符串, 而必须是使用枚举, 在这个前提下去"抓鱼". 也就是我能不能直接传枚举成员值进去, 先利用枚举的 rawValue 解决第一个问题,例如这样使用:
 
-```
+```Swift
 defaultStand.set("Chilli Cheng", forKey: .userName)
 defaultStand.string(forKey: .userName)
 ```
 很明显能够实现, 只要给 userDefaults 扩展自定义方法即可, 在自定义方法中调用系统的方法进行存取, 为了使用方便我们扩展类方法.示例:
 
-```
+```Swift
 extension UserDefaults {
     enum AccountKeys: String {
         case userName
@@ -212,7 +213,7 @@ UserDefaults.string(forKey: .userName)
 #### 前置上下文
  能实现上面的目的之一, 但是没有上下文, 既然在 key 那里不能加, 换一个思路, 那就在前面加, 例如:
  
-```
+```Swift
 UserDefaults.AccountInfo.set(value: "chilli cheng", forKey: .userName)
 UserDefaults.AccountInfo.string(forKey: .userName)
 ```
@@ -221,7 +222,7 @@ UserDefaults.AccountInfo.string(forKey: .userName)
 那我们先把自定义的方法抽取到协议中, 额, 但是协议不是只能提供方法声明, 不提供方法实现吗? 谁说的? 站出来我保证不打死他! Swift 中可以对协议 protocol 进行扩展, 提供协议方法的默认实现, 如果遵守协议的类/结构体/枚举实现了该方法, 就会覆盖掉默认的方法.
 我们来试着实现一下, 先写一个协议, 提供默认的方法实现:
 
-```
+```Swift
 protocol UserDefaultsSettable {
     
 }
@@ -239,7 +240,7 @@ extension UserDefaultsSettable {
 ```
 只要我的 AccountInfo 类/结构体/枚举遵守这个协议, 就能调用存取方法了, 但是, 现在问题来了, 也是至关重要的问题, AccountKeys 从哪儿来? 我们上面是把 AccountKeys 写在UserDefaults扩展里面的, 在协议里面如何知道这个变量是什么类型呢? 而且还使用到了 rawValue, 为了通用性, 那就需要在协议里[关联类型](http://wiki.jikexueyuan.com/project/swift/chapter2/23_Generics.html#associated_types), 而且传入的值能拿到 rawValue, 那么这个关联类型需要遵守 RawRepresentable 协议, 这个很关键!!!
 
-```
+```Swift
 protocol UserDefaultsSettable {
     associatedtype defaultKeys: RawRepresentable
 }
@@ -262,7 +263,7 @@ where defaultKeys.RawValue==String
 
 在 UserDefaults 的扩展中定义分组 key: 
 
-```
+```Swift
 extension UserDefaults {
     // 账户信息
     struct AccountInfo: UserDefaultsSettable {
@@ -284,7 +285,7 @@ extension UserDefaults {
 
 存取数据:
 
-```
+```Swift
 UserDefaults.AccountInfo.set(value: "chilli cheng", forKey: .userName)
 UserDefaults.AccountInfo.string(forKey: .userName)
         

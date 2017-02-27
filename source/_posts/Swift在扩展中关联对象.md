@@ -1,11 +1,15 @@
 ---
 title: Swift在扩展中关联对象
 date: 2015-12-27 
-tags: 
+categories: Swift
+tags: [Swift, 关联对象]
 ---
 Objective-C 最让人诟病的也许就是不能给已有类添加属性, 但是可以通过 Objective-C 的运行时机制关联自定义属性到对象上, 几乎弥补了这个痛点.  
 
 Swift Extension 比 Objective-C Category 增色不少, extension 能够给已有类添加计算型属性, 这已经是很大的进步, 但是仍然不能添加存储属性. Swift 中也可以使用 Objective-C runtime 的关联对象([Associated Objects](http://nshipster.cn/associated-objects/))的方式添加属性, 弥补这一痛点.
+
+
+<!---more--->
 
 ## 关联对象(Associated Objects)
 Swift 中提供三个与 Objective-C 类似的方法将自定义的属性关联到对象上:
@@ -16,7 +20,8 @@ Swift 中提供三个与 Objective-C 类似的方法将自定义的属性关联�
 > 注意: 使用 objc_removeAssociatedObjects 时要小心, 这个方法会删除对象关联的所有属性, 就可能导致把别人添加的关联属性也删掉. 如果要删除某一个属性, 使用 objc_setAssociatedObject 方法, value 置为 nil.
 
 下面给 UIView 添加三种不同类型的属性: isShow, displayName, width.
-```
+
+```Swift
 extension UIView {
     // 嵌套结构体
     private struct AssociatedKeys {
@@ -67,7 +72,7 @@ extension UIView {
 ## 抽取关联对象方法
 我们可以把关联对象的方法提取成公共方法, 在 NSObject 类的 extension 里实现, 只要继承自 NSObject 的类就能够调用关联对象方法, 通过[Swift 泛型](https://developer.apple.com/library/content/documentation/Swift/Conceptual/Swift_Programming_Language/Generics.html#//apple_ref/doc/uid/TP40014097-CH26-ID179)来关联不同类型的属性.
 
-```
+```Swift
 extension NSObject {
     func setAssociated<T>(value: T, associatedKey: UnsafeRawPointer, policy: objc_AssociationPolicy = objc_AssociationPolicy.OBJC_ASSOCIATION_RETAIN_NONATOMIC) -> Void {
         objc_setAssociatedObject(self, associatedKey, value, policy)
@@ -81,7 +86,8 @@ extension NSObject {
 ```
 
 我们只需要在 UIView+Extension.swift 中调动上面两个方法即可, 目前只支持有可选类型的属性.
-```
+
+```Swift
 extension UIView {
     private struct AssociatedKeys {
         static var displayNameKey = "displayNameKey"
@@ -101,7 +107,8 @@ extension UIView {
 ## 关联闭包属性
 开发中有时会给已有类关联闭包属性, 比如给 UIViewController 类添加一个 pushCompletion 的闭包属性, 当导航控制器 push 动作完成后调用该控制器的 pushCompletion 闭包.  
 先按照最基本的方式来关联对象, 如下:
-```
+
+```Swift
 typealias pushCompletionClosure = ()->()
 
 extension UIViewController {
@@ -128,7 +135,8 @@ extension UIViewController {
 
 ### 泛型包装闭包属性
 setAssociated 方法需要泛型参数, 当传入闭包后, 就会把闭包包装成泛型.
-```
+
+```Swift
 set {
    setAssociated(value: newValue, associatedKey: &AssociatedKeys.pushCompletionKey)
 }
@@ -141,7 +149,7 @@ set {
 
 闭包容器的方式是把闭包属性包装到了容器中, 再把容器对象关联到已有类上, 跟泛型包装闭包有异曲同工之处, 因此必须通过容器对象来访问闭包, 如果需要给类关联的闭包属性相对较多, 这种方式也不失为一种好方法, 能统一管理闭包属性, 代码层级结构也比较清晰.
 
-```
+```Swift
 typealias pushCompletionClosure = ()->()
 
 extension UIViewController {

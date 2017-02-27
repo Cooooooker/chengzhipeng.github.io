@@ -1,7 +1,11 @@
+
 ---
 title: TMCache源码分析<二> TMDiskCache磁盘缓存
-tags:
+date: 2016-3-3 
+categories: Objective-C
+tags: [TMCache, 缓存]
 ---
+
 [上篇分析](http://www.jianshu.com/p/a8a45c12d2d2)了 `TMCache`中内存缓存`TMMemoryCache`的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  
 
 磁盘缓存,顾名思义:将数据存储到磁盘上,由于需要储存的数据量比较大,所以一般读写速度都比内存缓存慢, 但也是非常重要的一项功能, 比如能够实现离线浏览等提升用户体验.  
@@ -10,6 +14,8 @@ tags:
 - 基于文件读写.
 - 基于数据库.  
 - 基于 mmap 文件内存映射.
+
+<!---more--->
 
 前面两种使用的比较广泛, `SDWebImage`和`TMDiskCache`都是基于文件 I/O 进行存储的, 也就是一个 value 对应一个文件, 通过读写文件来缓存数据. 根据上篇可以知道`TMMemoryCache`内存缓存的主线是按照 key-value的形式把数据存进可变字典中, 那么磁盘缓存的主线也是按照 key-value的形式进行对应的, 只不过 value 对应的是一个文件, 换汤不换药.  
 
@@ -27,13 +33,12 @@ tags:
 ### 初始化方法
 在操作之前先看一下`TMDiskCache`的初始化方法, 提供一个类方法, 两个实例方法:
 
-```
+```Objc
 + (instancetype)sharedCache;
 
 - (instancetype)initWithName:(NSString *)name;
 - (instancetype)initWithName:(NSString *)name rootPath:(NSString *)rootPath;
 ```
-
 从名字应该能猜测出最终调用的方法应该是`- (instancetype)initWithName:(NSString *)name rootPath:(NSString *)rootPath`, 传磁盘缓存所在目录的名字和绝对路径, 如果调用前两个方法,在方法内部将默认设置好路径或者缓存文件夹名字. 我们主要看终极方法主要做了几件事:
 - 创建串行队列,是单例,即一个单例缓存对象有一个单例串行队列.
 - 初始化两个可变字典`_dates`, `_sizes`, 分别用于存数据最后操作时间和数据占用磁盘空间大小.
@@ -41,7 +46,7 @@ tags:
 
 其余的比较简单, 这里主要说一下`设置缓存文件操作时间`的相关 API, 首先是处理 key 的方法, 这两个方法分别对传入的 key 进行编码和解码, 比如在调用`setObject:forKey:`的时候 key 值传入了中文字符, 就会调用`encodedString`和`decodedString`来编解码, 可以进入沙盒中看到对应的缓存文件名字是这类编码后的字符, 形如:`%E7%A8%8B%E5%85%88%E7%94%9F`.
 
-```
+```Objc
 - (NSString *)encodedString:(NSString *)string {
     if (![string length])
         return @"";
@@ -73,7 +78,7 @@ tags:
 
 这么做的目的是什么呢?第一次创建磁盘缓存目录肯定是空的文件夹, 里面铁定没有缓存文件, 那为什么要遍历一次所有的缓存文件并更新其操作时间和大小呢? 其实是为了防止不小心再次调用`- (instancetype)initWithName:(NSString *)name rootPath:(NSString *)rootPath`创建了一个名字和路径都相同的缓存目录, 避免里面已经缓存的数据`脱离控制`. 用心良苦呀!
 
-```
+```Objc
 - (void)initializeDiskProperties {
     NSUInteger byteCount = 0;
     NSArray *keys = @[ NSURLContentModificationDateKey, NSURLTotalFileAllocatedSizeKey ];
@@ -115,9 +120,10 @@ tags:
     return [self decodedString:fileName];
 }
 
-```  
+```
 
-由此看出, 对于缓存数据来说, ` key 经过编码后设为缓存文件名,  value 经过归档后写入文件`.  
+
+由此看出, 对于缓存数据来说, `key 经过编码后设为缓存文件名,  value 经过归档后写入文件`.  
 
 至此, 所有的准备工作都基本做完, 下面开始存取数据了.
 
@@ -126,7 +132,7 @@ tags:
 #### 异步的进行读写数据
 相关 API:
 
-```
+```Objc
 - (void)objectForKey:(NSString *)key block:(TMDiskCacheObjectBlock)block;
 - (void)setObject:(id <NSCoding>)object forKey:(NSString *)key block:(TMDiskCacheObjectBlock)block;
 ```
@@ -135,30 +141,30 @@ tags:
 
 ##### 写入缓存 
 1. 写操作被 commit 到串行队列中, 保证了写缓存的时候线程安全:
- 
-    ```
+    
+    ```Objc
     dispatch_async(_queue, ^{ 
         // 写操作
         // ...
     }
     ```
 
-2. 将传入的对象进行归档处理, 所以要缓存的对象一定要遵守`NSCoding`协议, 并实现相关方法: 
+2. 将传入的对象进行归档处理, 所以要缓存的对象一定要遵守`NSCoding`协议, 并实现相关方法:
 
-    ```
+    ```Objc
     BOOL written = [NSKeyedArchiver archiveRootObject:object toFile:[fileURL path]];
     ```
 
 3. 更新缓存文件的修改时间, 不管是新加入的缓存数据还是已有的缓存数据进行更新, 都会修改对应的时间为当前时间:
     
-    ```
+    ```Objc
     [strongSelf setFileModificationDate:now forURL:fileURL];
     ```
 
 4. 下面是针对缓存空间大小的处理, 比较重要的一步, 根据最新缓存的数据更新总共已经使用的磁盘空间大小, 如果超过预设磁盘空间上限, 则需要删除一些数据以达到不超过上限的目的, 那以什么规则来删除超过缓存上限的部分数据呢? `TMMemoryCache`的优化策略是根据操作时间的先后顺序, 即操作时间早的数据, 认为你使用的概率比较低, 所以就优先删除掉, `TMDiskCache`优化策略跟`TMMemoryCache`相同, 先删除最早的数据. 这也是以文件系统的形式缓存数据的缺点, 不能进行有效的算法.
  - 更新缓存空间大小.
  
-     ```
+     ```Objc
         NSNumber *oldEntry = [strongSelf->_sizes objectForKey:key];
         
         if ([oldEntry isKindOfClass:[NSNumber class]]){
@@ -170,7 +176,7 @@ tags:
      ```
  - 删除超出部分空间的缓存数据.
  
-     ```
+     ```Objc
      if (strongSelf->_byteLimit > 0 && strongSelf->_byteCount > strongSelf->_byteLimit)
                     [strongSelf trimToSizeByDate:strongSelf->_byteLimit block:nil];
      ```
@@ -181,13 +187,13 @@ tags:
 ##### 读取缓存
 相关 API:
 
-```
+```Objc
 - (id <NSCoding>)objectForKey:(NSString *)key;
 - (void)objectForKey:(NSString *)key block:(TMDiskCacheObjectBlock)block;
 ```
 也是看看异步的读取缓存, 根据上面写入缓存的步骤可以推测读取的步骤, 无非就是把 key 进行编码, 找到缓存文件, 再解档缓存文件内容, 最后更新操作时间, 主线就这几步, 其余的就是加点"配料" - will / did block 之类的时序控制类操作.
 
-```
+```Objc
 dispatch_async(_queue, ^{
         TMDiskCache *strongSelf = weakSelf;
         if (!strongSelf)
@@ -212,7 +218,6 @@ dispatch_async(_queue, ^{
         block(strongSelf, key, object, fileURL);
     });
 ```
-
 代码中通过`@ try`, `@catch`抛出异常, 如果解档缓存文件内容失败, 直接删除该缓存文件, 简单不做作, 直接了当! 额, 也许不近人情, 好歹你告诉我错误信息是什么, 让我来决定删不删嘛. 
 
 #### 同步的写入/读取缓存
@@ -221,11 +226,10 @@ dispatch_async(_queue, ^{
 ### 同步/异步的进行删除数据
 相关 API:
 
-```
+```Objc
 - (void)removeObjectForKey:(NSString *)key;
 - (void)removeObjectForKey:(NSString *)key block:(TMDiskCacheObjectBlock)block;
 ```
-
 我们只分析异步的删除缓存数据, 同步的跟其它同步操作一样.
 既然知道怎么写入缓存, 那删除应该也没什么问题了, 找到要删除的文件路径, 删除该缓存文件即可. 所以步骤应该是:
 1. key 进行编码, 再拼接成完整的缓存文件的绝对路径.
@@ -234,7 +238,7 @@ dispatch_async(_queue, ^{
 
 > 注意删除文件的时候并没有直接删除, 而是把待删除文件移到临时目录 `tmp`下的缓存目录里, 创建了一个新的串行队列进行删除操作.
 
-```
+```Objc
 BOOL trashed = [TMDiskCache moveItemAtURLToTrash:fileURL];
 if (!trashed)
      return NO;
@@ -245,7 +249,7 @@ if (!trashed)
 ### 同步/异步的获取缓存路径
 相关 API:
 
-```
+```Objc
 - (void)fileURLForKey:(NSString *)key block:(TMDiskCacheObjectBlock)block;
 - (NSURL *)fileURLForKey:(NSString *)key;
 ```
@@ -253,7 +257,7 @@ if (!trashed)
 1. 对 key 进行编码, 拼接完整缓存文件路径.
 2. 更新缓存文件操作时间.
 
-```
+```Objc
     NSURL *fileURL = [strongSelf encodedFileURLForKey:key];
     
     if ([[NSFileManager defaultManager] fileExistsAtPath:[fileURL path]]) {
@@ -266,7 +270,7 @@ if (!trashed)
 ### 同步/异步的根据缓存时间或者缓存大小来削减磁盘空间
 这部分操作跟`TMMemoryCache`的实现类似, 相关 API: 
 
-```
+```Objc
 - (void)trimToDate:(NSDate *)date;
 - (void)trimToDate:(NSDate *)date block:(TMDiskCacheBlock)block;
 
@@ -285,7 +289,7 @@ if (!trashed)
 ### 设置磁盘缓存空间上限, 磁盘缓存时间上限
 源码实现:
 
-```
+```Objc
 - (NSUInteger)byteLimit {
     __block NSUInteger byteLimit = 0;
     
@@ -317,7 +321,7 @@ if (!trashed)
 
 意思是不要在 `shareQueue` 和接口里面的任何 API 的异步 block 中去读这个属性, 为什么呢?  因为`TMDiskCache`所有的读写删除操作都是放在`Serial Queue`串行队列中的, 也就是`shareQueue`队列, 天啦噜...这不造成死锁才怪呢! 警告还写这么不明显.形如下面的是`错误❌`的用法:
 
-```
+```Objc
 [diskCache removeObjectForKey:@"profileKey" block:^(TMDiskCache *cache, NSString *key, id<NSCoding> object, NSURL *fileURL) {
         NSLog(@"%ld", diskCache.byteLimit);
  }];
@@ -325,39 +329,35 @@ if (!trashed)
 
 因为在`removeObjectForKey`之类的方法中会同步执行传入的 block 操作, 如果在 block 里面再提交新的任务到串行队列中, 再同步执行, 必然死锁. 因为外层的 block 需要等待新提交的 block 执行完毕才能执行完成, 然而新提交的 block 需要等待外层 block 执行完才能执行, 两者相互依赖对方执行完才能执行完成, 就造成`死锁`了.   
 
-```
+```Objc
 if (block)
     block(strongSelf, key, nil, fileURL);
 ``` 
-
 上一篇分析了 `TMMemoryCache` 容易造成性能消耗严重, 而`TMDiskCache`使用不当容易造成`死锁.`
 
 ### 各类 will / did block, 以及后台操作
 
 will / did block 穿插在各类异步操作中, 非常简单, 看看即可.
 
-```
+```Objc
 if (strongSelf->_willAddObjectBlock)
     strongSelf->_willAddObjectBlock(strongSelf, key, object, fileURL);
 ```
-
 其中后台操作有点意思, 创建一个全局的`后台管理者`遵守`TMCacheBackgroundTaskManager`协议, 实现其中的两个方法:
 
-```
+```Objc
 - (UIBackgroundTaskIdentifier)beginBackgroundTask;
 - (void)endBackgroundTask:(UIBackgroundTaskIdentifier)identifier;
 ```
-
 然后调用设置方法, 给 `TMDiskCache`对象设置后台管理者.
 
-```
+```Objc
 + (void)setBackgroundTaskManager:(id <TMCacheBackgroundTaskManager>)backgroundTaskManager;
 ```
-
 在后台任务开始之前调用 `beginBackgroundTask` 方法, 结束后台任务之前调用 `endBackgroundTask`, 就能在后台管理者里面监听到什么时候进入后台操作, 什么时候结束后台操作了.
 具体做法:
 
-```
+```Objc
 UIBackgroundTaskIdentifier taskID = [TMCacheBackgroundTaskManager beginBackgroundTask];
 
 dispatch_async(_queue, ^{ 
@@ -373,13 +373,12 @@ dispatch_async(_queue, ^{
      [TMCacheBackgroundTaskManager endBackgroundTask:taskID];
 }
 ```
-
 因为磁盘的操作可能耗时非常长, 不可能一直等待, 因此通过这种全局的方式来感知异步操作的开始和结束, 从而执行响应事件. 
 
 ### 清空临时存储区
 根据上面可以知道, 删除缓存文件的时候, 先会在`tmp`下创建"回收目录", 需要删除的缓存文件统一放进回收目录下, 下面是获取回收目录的URL 路径, 没有就创建, 有则返回, 只创建一次:
 
-```
+```Objc
 + (NSURL *)sharedTrashURL {
     static NSURL *sharedTrashURL;
     static dispatch_once_t predicate;
@@ -403,7 +402,7 @@ dispatch_async(_queue, ^{
 
 创建一个清空操作专属的串行队列`TrashQueue`, 并且使用`dispatch_set_target_queue`方法修改`TrashQueue`的优先级, 并与全局并发队列`global_queue` 的后台优先级一致. 因为`tmp`目录的情况操作不是那么的重要, 即使我们不手动清除, 系统也会在恰当的时候清除, 所以这里把`TrashQueue`队列的优先级降低.
 
-```
+```Objc
 + (dispatch_queue_t)sharedTrashQueue {
     static dispatch_queue_t trashQueue;
     static dispatch_once_t predicate;
@@ -420,7 +419,7 @@ dispatch_async(_queue, ^{
 
 类方法, 把原本在`Caches`下的缓存文件移动进`tmp`目录下的回收目录.
 
-```
+```Objc
 + (BOOL)moveItemAtURLToTrash:(NSURL *)itemURL {
     if (![[NSFileManager defaultManager] fileExistsAtPath:[itemURL path]])
         return NO;
@@ -436,7 +435,7 @@ dispatch_async(_queue, ^{
 
 把清除操作添加到`TrashQueue`中异步执行, 在该方法中遍历回收目录下所有的缓存文件, 依次进行删除:
 
-```
+```Objc
 + (void)emptyTrash {
     UIBackgroundTaskIdentifier taskID = [TMCacheBackgroundTaskManager beginBackgroundTask];
     
@@ -461,8 +460,8 @@ dispatch_async(_queue, ^{
 
 其实我们只要看一下删除操作在哪里执行的, 就能明白为何作者要创建一个专门用于删除数据的串行队列了. `emptyTrash`方法调用是在读写操作的串行队列`queue`中, 方法调用后面还有`_didRemoveObjectBlock`等待执行, 如果删除数据量比较大且删除操作在`queue`中, 将阻塞当前线程, 那么`_didRemoveObjectBlock`会等待许久才能回调, 况且删除操作对于响应用户事件而言不是那么的重要, 所以把需要删除的缓存文件放进`tmp`目录下, 创建新的低优先级的串行队列来进行删除操作.  这点值得学习!
 
-```
-[TMDiskCache emptyTrash];```
+```Objc
+[TMDiskCache emptyTrash];
 ```
 
 ### 总结
@@ -470,6 +469,4 @@ dispatch_async(_queue, ^{
 2. 删除缓存的思路值得借鉴.  
 
 欢迎大家斧正!
-
-
 

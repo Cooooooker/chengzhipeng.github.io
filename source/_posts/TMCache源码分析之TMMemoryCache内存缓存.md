@@ -1,7 +1,8 @@
 ---
 title: TMCache源码分析<一> TMMemoryCache内存缓存
-categories: iOS
-tags: [iOS, TMCache, 缓存]
+date: 2016-2-27 
+categories: Objective-C
+tags: [TMCache, 缓存]
 ---
 缓存是我们移动端开发必不可少的功能, 目前提及的缓存按照存储形式来分主要分为:
 - 内存缓存: 快速, 读写数据量小
@@ -14,6 +15,8 @@ tags: [iOS, TMCache, 缓存]
 
 简言之,缓存的目的就是:
 > 以空间换时间.  
+  
+<!---more--->
   
 目前 gitHub 上开源了很多缓存框架, 著名的 [TMCache](https://github.com/tumblr/TMCache), [PINCache](https://github.com/pinterest/PINCache), [YYCache](https://github.com/ibireme/YYCache)等, 接下来我会逐一分析他们的源码实现, 对比它们的优缺点.  
 
@@ -35,7 +38,7 @@ tags: [iOS, TMCache, 缓存]
 ### 同步/异步的存储对象到内存中
 相关 API:
 
-{% codeblock lang:objc %}
+```Objc
 // 同步
 - (void)setObject:(id)object forKey:(NSString *)key;
 - (void)setObject:(id)object forKey:(NSString *)key withCost:(NSUInteger)cost;
@@ -43,7 +46,7 @@ tags: [iOS, TMCache, 缓存]
 // 异步
 - (void)setObject:(id)object forKey:(NSString *)key block:(TMMemoryCacheObjectBlock)block;
 - (void)setObject:(id)object forKey:(NSString *)key withCost:(NSUInteger)cost block:(TMMemoryCacheObjectBlock)block;
-{% endcodeblock %}
+```
 
 #### 异步存储
 首先看一下异步存储对象, 因为同步存储里面会调用异步存储操作, 采用 `dispatch_semaphore` 信号量的方式强制把异步操作转换成同步操作.  
@@ -56,7 +59,7 @@ _costs | 存储对象的 key | 存储对象所占内存大小
 
 实现数据存储的核心方法:
 
-{% codeblock lang:objc %}  
+```Objc  
 - (void)setObject:(id)object forKey:(NSString *)key withCost:(NSUInteger)cost block:(TMMemoryCacheObjectBlock)block {
     NSDate *now = [[NSDate alloc] init];
 
@@ -101,7 +104,7 @@ _costs | 存储对象的 key | 存储对象所占内存大小
         }
     });
 }
-{% endcodeblock %}
+```
 
 在上面的代码中我标出了核心存储方法做了几件事, 其中最为核心的是保证线程安全的`dispatch_barrier_async`方法, 在 GCD 中称之为`栅栏`方法, 一般跟`并发队列`一起用, 在多线程中对同一资源的竞争条件下保护共享资源, 确保在同一时间片段只有一个线程`写`资源, 这是不扩展讲 GCD 的相关知识.
 > dispatch_barrier_async 方法一般都是跟并发队列搭配使用,下面的图解很清晰(`侵删`), 在并发队列中有很多任务(block), 这些block都是按照 FIFO 的顺序执行的, 当要执行用 dispatch_barrier_async 方法提交到并发队列queue的 block 的时候, 该并发队列暂时会'卡住', 等待之前的任务 block 执行完毕, 再执行dispatch_barrier_async 提交的 block, 在此 block 之后提交到并发队列queue的 block 不会被执行,会一直等待 dispatch_barrier_async block 执行完毕后才开始并发执行, 我们可以看出, 在并发队列遇到 dispatch_barrier_async block 时就处于一直串行队列状态, 等待执行完毕后又开始并发执行.  
@@ -115,7 +118,7 @@ _costs | 存储对象的 key | 存储对象所占内存大小
 #### 同步存储
 根据上文所说, 同步存储中会调用异步存储操作, 来看一下代码:  
 
-{% codeblock lang:objc %}
+```Objc
 - (void)setObject:(id)object forKey:(NSString *)key withCost:(NSUInteger)cost {
     if (!object || !key)
         return;
@@ -134,7 +137,7 @@ _costs | 存储对象的 key | 存储对象所占内存大小
     dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
 
 }
-{% endcodeblock %}
+```
 
 从上面代码可以看出,同步的存储数据使用了 GCD 的 `dispatch_semaphore_t` 信号量, 这是一个非常古老又复杂的线程概念, 有兴趣的话可以看看 `<<UNIX 环境高级编程>>` 这本经典之作, 因为它的复杂是建立在操作系统的复杂性上的.但是这并不影响我们使用 dispatch_semaphore_t 信号量. 怎么使用 GCD 的信号量以及原理下面大概描述一下:
 > 信号量在竞态条件下能够保证线程安全,在创建信号量 dispatch_semaphore_create 的时候设置信号量的值, 这个值表示允许多少个线程可同时访问公共资源, 就好比我们的车位一样, 线程就是我们的车子,这个信号量就是停车场的管理者, 他知道什么时候有多少车位, 是不是该把车子放进停车场, 当没有车位或者车位不足时, 这个管理员就会把司机卡在停车场外不准进, 那么被拦住的司机按照 FIFO 的队列排着队, 有足够位置的时候,管理员就方法闸门, 大吼一声: 孩子们去吧. 那么肯定有司机等不耐烦了, 就想着等十分钟没有车位就不等了,就可以在 dispatch_semaphore_wait 方法中设置等待时间, 等待超过设置时间就不等待.    
@@ -157,7 +160,7 @@ _costs | 存储对象的 key | 存储对象所占内存大小
 
 #### 异步获取数据
 
-{% codeblock lang:objc %}
+```Objc
 - (void)objectForKey:(NSString *)key block:(TMMemoryCacheObjectBlock)block {
     NSDate *now = [[NSDate alloc] init];
     
@@ -190,13 +193,13 @@ _costs | 存储对象的 key | 存储对象所占内存大小
         block(strongSelf, key, object);
     });
 }
-{% endcodeblock %}
+```
 
 根据代码中注释可知,除了拿到 key 值对应的 value, 还更新了此数据最后操作时间, 这有什么用呢? 其实是为了记录数据最后的操作时间, 后面会根据这个最后操作时间来删除数据等一系列根据时间排序的操作.最后一步是回调, 我们可以看到, TMMemoryCache所有的读写和回调操作都放在同一个并发队列中,这就为以后性能下降和死锁埋下伏笔.
 
 #### 同步获取数据
 
-{% codeblock lang:objc %}
+```Objc
 - (id)objectForKey:(NSString *)key {
     if (!key)
         return nil;
@@ -215,14 +218,14 @@ _costs | 存储对象的 key | 存储对象所占内存大小
 
     return objectForKey;
 }
-{% endcodeblock %}
+```
 
 同步获取数据也是通过 `dispatch_semaphore_t` 信号量的方式,把异步获取数据的操作强制转成同步获取, 跟同步存储数据的原理相同.
 
 ### 同步/异步的从内存中删除指定 key 的对象,或者全部对象.
 删除操作也不例外:
 
-{% codeblock lang:objc %}
+```Objc
 - (void)removeObjectForKey:(NSString *)key block:(TMMemoryCacheObjectBlock)block {
     if (!key)
         return;
@@ -270,14 +273,16 @@ _costs | 存储对象的 key | 存储对象所占内存大小
     if (_didRemoveObjectBlock)
         _didRemoveObjectBlock(self, key, nil);
 }
-{% endcodeblock %}
+
+```
 
 需要注意的是 `- (void)removeObjectAndExecuteBlocksForKey` 是共用私有方法, 删除跟 key 相关的所有缓存, 后面的删除操作还会用到此方法.
 
 ### 设置内存缓存使用上限 
 TMMemoryCache 提供`costLimit`属性来设置内存缓存使用上限, 这个也是 NSCache 不具备的功能,来看一下跟此属性相关的方法以及实现,代码中有详细解释:
 
-{% codeblock lang:objc %}
+
+{% codeblock lang:Objc %}
 // getter
 - (NSUInteger)costLimit {
     __block NSUInteger costLimit = 0;
@@ -324,9 +329,11 @@ TMMemoryCache 提供`costLimit`属性来设置内存缓存使用上限, 这个�
             break;
     }
 }
-{% endcodeblock %}  
+{% endcodeblock %}
 
-`- (void)trimToCostLimitByDate:(NSUInteger)limit` 方法的作用:
+
+
+在`- (void)trimToCostLimitByDate:(NSUInteger)limit` 方法的作用:
 1. 如果目前已使用的内存大小小于需要设置的内存上线,则不删除数据,否则删除'最老'的数据,让已使用的内存大小不超过设置的内存上限.
 2. 按照存储的数据最近操作的最后时间进行升序排序,即最近操作的数据对应的 key 排最后.
 3. 如果已经超过内存上限, 则根据 key 值删除数据, 先删除操作时间较早的数据.
@@ -338,7 +345,7 @@ TMMemoryCache 提供`costLimit`属性来设置内存缓存使用上限, 这个�
 TMMemoryCache 提供`ageLimit`属性来设置缓存过期时间,根据上面`costLimit`属性可以猜想一下`ageLimit`是怎么实现的,既然是要设置缓存过期时间, 那么我设置缓存过期时间 `ageLimit = 10` 10秒钟,说明距离当前时间之前的10秒的数据已经过期, 需要删除掉; 再过10秒又要当前时间删除之前10秒存的数据,我们知道删除只需要找到 key 就行,所以就必须通过`_date`字典找到过期的 key, 再删除数据.由此可知需要一个定时器,每过10秒删除一次,完成一个定时任务. 
 上面只是我们的猜想,来看看代码是不是这么实现的呢?我们只需看核心的操作方法
 
-{% codeblock lang:objc %}
+```Objc
 - (void)trimToAgeLimitRecursively {
     if (_ageLimit == 0.0)
         return;
@@ -364,7 +371,8 @@ TMMemoryCache 提供`ageLimit`属性来设置缓存过期时间,根据上面`cos
         });
     });
 }
-{% endcodeblock %}
+
+;``  
 上面的代码验证了我们的猜想,但是在不断的创建定时器,不断的在并行队列中使用`dispatch_barrier_async`栅栏方法提交递归 block, 天啦噜...如果设置的 ageLimit 很小,可想而知性能消耗会非常大!
  
  
@@ -375,18 +383,18 @@ TMMemoryCache 提供`ageLimit`属性来设置缓存过期时间,根据上面`cos
 这两类方法主要是为了更加灵活的使用 TMMemoryCache,指定一个时间或者内存大小,会自动删除时间点之前和大于指定内存大小的数据.
 相关 API:
 
-{% codeblock lang:objc %}
+```Objc
 // 清空 date 之前的数据
 - (void)trimToDate:(NSDate *)date block:(TMMemoryCacheBlock)block;
 // 清空数据,让已使用内存大小为cost 
 - (void)trimToCost:(NSUInteger)cost block:(TMMemoryCacheBlock)block;
-{% endcodeblock %}
+```
 
 删除指定时间点有两点注意:
 - 如果指定的时间点为 `[NSDate distantPast]` 表示最早能表示的时间,说明清空全部数据.
 - 如果不是最早时间,把`_date`中的 key 按照升序排序,再遍历排序后的 key 数组,判断跟指定时间的关系,如果比指定时间更早则删除, 即删除指定时间节点之前的数据.
 
-{% codeblock lang:objc %}
+```Objc
 - (void)trimMemoryToDate:(NSDate *)trimDate {
     // 字典中存放的顺序不是按照顺序存放的, 所以按照一定格式排序, 根据 value 升序的排 key 值顺序, 也就是说根据时间的升序来排 key, 数组中第一个值是最早的时间的值.
     NSArray *keysSortedByDate = [_dates keysSortedByValueUsingSelector:@selector(compare:)];
@@ -404,7 +412,7 @@ TMMemoryCache 提供`ageLimit`属性来设置缓存过期时间,根据上面`cos
         }
     }
 }
-{% endcodeblock %}
+```
 
 ### 总结
 内存缓存是很简单的, 核心就是 key-value 的形式存储数据进字典,再辅助设置内存上限,缓存时间,各类 will/did block 操作, 最重要的是要实现线程安全.
