@@ -6,7 +6,7 @@ categories: Objective-C
 tags: [TMCache, 缓存]
 ---
 
-[上篇分析](http://www.jianshu.com/p/a8a45c12d2d2)了 `TMCache`中内存缓存`TMMemoryCache`的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  
+[上篇分析](https://chengzhipeng.github.io/2016/02/27/TMCache源码分析之TMMemoryCache内存缓存/)了 `TMCache`中内存缓存`TMMemoryCache`的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  
 
 磁盘缓存,顾名思义:将数据存储到磁盘上,由于需要储存的数据量比较大,所以一般读写速度都比内存缓存慢, 但也是非常重要的一项功能, 比如能够实现离线浏览等提升用户体验.  
 

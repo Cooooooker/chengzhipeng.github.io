@@ -1,0 +1,861 @@
+<!doctype html>
+
+
+
+  
+
+
+<html class="theme-next muse use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+    
+      
+    
+
+    
+  
+
+  
+
+  
+    
+      
+    
+
+    
+  
+
+  
+    
+      
+    
+
+    
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Monda:300,300italic,400,400italic,700,700italic|Roboto Slab:300,300italic,400,400italic,700,700italic|Lobster Two:300,300italic,400,400italic,700,700italic|PT Mono:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="TMCache,缓存," />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.0" />
+
+
+
+
+
+
+<meta name="description" content="上篇分析了 TMCache中内存缓存TMMemoryCache的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  
+磁盘缓存,顾名思义:将数据存储到磁盘上,由于需要储存的数据量比较大,所以一般读写速度都比内存缓存慢, 但也是非常重要的一项功能, 比如能够实现离线浏览等提升用户体验.  
+磁盘缓存的实现形式大致分为三种:
+
+基于文件读写.
+基于数据库.  
+基于 mmap 文件内存映射.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="TMCache源码分析<二> TMDiskCache磁盘缓存">
+<meta property="og:url" content="http://yoursite.com/2016/03/03/TMCache源码分析之TMDiskCache磁盘缓存/index.html">
+<meta property="og:site_name" content="Cheng'blog">
+<meta property="og:description" content="上篇分析了 TMCache中内存缓存TMMemoryCache的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  
+磁盘缓存,顾名思义:将数据存储到磁盘上,由于需要储存的数据量比较大,所以一般读写速度都比内存缓存慢, 但也是非常重要的一项功能, 比如能够实现离线浏览等提升用户体验.  
+磁盘缓存的实现形式大致分为三种:
+
+基于文件读写.
+基于数据库.  
+基于 mmap 文件内存映射.">
+<meta property="og:updated_time" content="2017-02-27T16:34:38.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="TMCache源码分析<二> TMDiskCache磁盘缓存">
+<meta name="twitter:description" content="上篇分析了 TMCache中内存缓存TMMemoryCache的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  
+磁盘缓存,顾名思义:将数据存储到磁盘上,由于需要储存的数据量比较大,所以一般读写速度都比内存缓存慢, 但也是非常重要的一项功能, 比如能够实现离线浏览等提升用户体验.  
+磁盘缓存的实现形式大致分为三种:
+
+基于文件读写.
+基于数据库.  
+基于 mmap 文件内存映射.">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    sidebar: {"position":"left","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2016/03/03/TMCache源码分析之TMDiskCache磁盘缓存/"/>
+
+
+
+
+
+  <title> TMCache源码分析<二> TMDiskCache磁盘缓存 | Cheng'blog </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container one-collumn sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Cheng'blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/03/03/TMCache源码分析之TMDiskCache磁盘缓存/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="chengzhipeng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.jpeg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Cheng'blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+            
+            
+              
+                TMCache源码分析<二> TMDiskCache磁盘缓存
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2016-03-03T00:00:00+08:00">
+                2016-03-03
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Objective-C/" itemprop="url" rel="index">
+                    <span itemprop="name">Objective-C</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p><a href="https://chengzhipeng.github.io/2016/02/27/TMCache源码分析之TMMemoryCache内存缓存/" target="_blank" rel="external">上篇分析</a>了 <code>TMCache</code>中内存缓存<code>TMMemoryCache</code>的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  </p>
+<p>磁盘缓存,顾名思义:将数据存储到磁盘上,由于需要储存的数据量比较大,所以一般读写速度都比内存缓存慢, 但也是非常重要的一项功能, 比如能够实现离线浏览等提升用户体验.  </p>
+<p>磁盘缓存的实现形式大致分为三种:</p>
+<ul>
+<li>基于文件读写.</li>
+<li>基于数据库.  </li>
+<li>基于 mmap 文件内存映射.</li>
+</ul>
+<a id="more"></a>
+<p>前面两种使用的比较广泛, <code>SDWebImage</code>和<code>TMDiskCache</code>都是基于文件 I/O 进行存储的, 也就是一个 value 对应一个文件, 通过读写文件来缓存数据. 根据上篇可以知道<code>TMMemoryCache</code>内存缓存的主线是按照 key-value的形式把数据存进可变字典中, 那么磁盘缓存的主线也是按照 key-value的形式进行对应的, 只不过 value 对应的是一个文件, 换汤不换药.  </p>
+<p>通过<code>TMDiskCache</code>的接口 API 可以看到, <code>TMDiskCache</code>提供以下功能:  </p>
+<ul>
+<li>同步/异步的进行读写数据.</li>
+<li>同步/异步的进行删除数据.</li>
+<li>同步/异步的获取缓存路径.</li>
+<li>同步/异步的根据缓存时间或者缓存大小来削减磁盘空间.</li>
+<li>设置磁盘缓存空间上限, 磁盘缓存时间上限.</li>
+<li>各类 will / did block, 以及监听后台操作.</li>
+<li>清空临时存储区.</li>
+</ul>
+<p><code>TMDiskCache</code>的同步操作是跟<code>TMMemoryCache</code>操作一样,都是采用<code>dispatch_semaphore_t</code>信号量的形式来强制把异步转成同步操作,后面同步操作就一步带过,除非特别说明.   其实<code>TMDiskCache</code>的难点不在于线程安全,因为它所有的操作都在一个 serial queue 串行队列中, 不存在竞态情况, 难点在于文件的操作, 了解 Linux 文件系统操作的同学应该知道文件 I/O 的概念, iOS 封装了操作文件的类, 使用这些高级 API 能更好的操作文件.</p>
+<h3 id="初始化方法"><a href="#初始化方法" class="headerlink" title="初始化方法"></a>初始化方法</h3><p>在操作之前先看一下<code>TMDiskCache</code>的初始化方法, 提供一个类方法, 两个实例方法:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">+ (<span class="keyword">instancetype</span>)sharedCache;</div><div class="line"></div><div class="line">- (<span class="keyword">instancetype</span>)initWithName:(<span class="built_in">NSString</span> *)name;</div><div class="line">- (<span class="keyword">instancetype</span>)initWithName:(<span class="built_in">NSString</span> *)name rootPath:(<span class="built_in">NSString</span> *)rootPath;</div></pre></td></tr></table></figure>
+<p>从名字应该能猜测出最终调用的方法应该是<code>- (instancetype)initWithName:(NSString *)name rootPath:(NSString *)rootPath</code>, 传磁盘缓存所在目录的名字和绝对路径, 如果调用前两个方法,在方法内部将默认设置好路径或者缓存文件夹名字. 我们主要看终极方法主要做了几件事:</p>
+<ul>
+<li>创建串行队列,是单例,即一个单例缓存对象有一个单例串行队列.</li>
+<li>初始化两个可变字典<code>_dates</code>, <code>_sizes</code>, 分别用于存数据最后操作时间和数据占用磁盘空间大小.</li>
+<li>创建缓存文件, 设置缓存文件操作时间.</li>
+</ul>
+<p>其余的比较简单, 这里主要说一下<code>设置缓存文件操作时间</code>的相关 API, 首先是处理 key 的方法, 这两个方法分别对传入的 key 进行编码和解码, 比如在调用<code>setObject:forKey:</code>的时候 key 值传入了中文字符, 就会调用<code>encodedString</code>和<code>decodedString</code>来编解码, 可以进入沙盒中看到对应的缓存文件名字是这类编码后的字符, 形如:<code>%E7%A8%8B%E5%85%88%E7%94%9F</code>.</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div></pre></td><td class="code"><pre><div class="line">- (<span class="built_in">NSString</span> *)encodedString:(<span class="built_in">NSString</span> *)string &#123;</div><div class="line">    <span class="keyword">if</span> (![string length])</div><div class="line">        <span class="keyword">return</span> <span class="string">@""</span>;</div><div class="line">    </div><div class="line">    <span class="built_in">CFStringRef</span> <span class="keyword">static</span> <span class="keyword">const</span> charsToEscape = <span class="built_in">CFSTR</span>(<span class="string">".:/"</span>);</div><div class="line">    <span class="built_in">CFStringRef</span> escapedString = <span class="built_in">CFURLCreateStringByAddingPercentEscapes</span>(kCFAllocatorDefault,</div><div class="line">                                                                        (__bridge <span class="built_in">CFStringRef</span>)string,</div><div class="line">                                                                        <span class="literal">NULL</span>,</div><div class="line">                                                                        charsToEscape,</div><div class="line">                                                                        kCFStringEncodingUTF8);</div><div class="line">    <span class="keyword">return</span> (__bridge_transfer <span class="built_in">NSString</span> *)escapedString;</div><div class="line">&#125;</div><div class="line"></div><div class="line">- (<span class="built_in">NSString</span> *)decodedString:(<span class="built_in">NSString</span> *)string &#123;</div><div class="line">    <span class="keyword">if</span> (![string length])</div><div class="line">        <span class="keyword">return</span> <span class="string">@""</span>;</div><div class="line">    </div><div class="line">    <span class="built_in">CFStringRef</span> unescapedString = <span class="built_in">CFURLCreateStringByReplacingPercentEscapesUsingEncoding</span>(kCFAllocatorDefault,</div><div class="line">                                                                                          (__bridge <span class="built_in">CFStringRef</span>)string,</div><div class="line">                                                                                          <span class="built_in">CFSTR</span>(<span class="string">""</span>),</div><div class="line">                                                                                          kCFStringEncodingUTF8);</div><div class="line">    <span class="keyword">return</span> (__bridge_transfer <span class="built_in">NSString</span> *)unescapedString;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>下面这个初始化设置方法, 只做了一件事:</p>
+<blockquote>
+<p>遍历缓存文件夹下面所有的已缓存的文件, 更新的操作时间数组<code>_dates</code>, 文件大小数组<code>_sizes</code>以及更新磁盘总使用大小.</p>
+</blockquote>
+<p>这么做的目的是什么呢?第一次创建磁盘缓存目录肯定是空的文件夹, 里面铁定没有缓存文件, 那为什么要遍历一次所有的缓存文件并更新其操作时间和大小呢? 其实是为了防止不小心再次调用<code>- (instancetype)initWithName:(NSString *)name rootPath:(NSString *)rootPath</code>创建了一个名字和路径都相同的缓存目录, 避免里面已经缓存的数据<code>脱离控制</code>. 用心良苦呀!</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div></pre></td><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)initializeDiskProperties &#123;</div><div class="line">    <span class="built_in">NSUInteger</span> byteCount = <span class="number">0</span>;</div><div class="line">    <span class="built_in">NSArray</span> *keys = @[ <span class="built_in">NSURLContentModificationDateKey</span>, <span class="built_in">NSURLTotalFileAllocatedSizeKey</span> ];</div><div class="line">    </div><div class="line">    <span class="built_in">NSError</span> *error = <span class="literal">nil</span>;</div><div class="line">    <span class="built_in">NSArray</span> *files = [[<span class="built_in">NSFileManager</span> defaultManager] contentsOfDirectoryAtURL:_cacheURL</div><div class="line">                                                   includingPropertiesForKeys:keys</div><div class="line">                                                                      options:<span class="built_in">NSDirectoryEnumerationSkipsHiddenFiles</span></div><div class="line">                                                                        error:&amp;error];</div><div class="line">    TMDiskCacheError(error);</div><div class="line">    </div><div class="line">    <span class="keyword">for</span> (<span class="built_in">NSURL</span> *fileURL <span class="keyword">in</span> files) &#123;</div><div class="line">        <span class="built_in">NSString</span> *key = [<span class="keyword">self</span> keyForEncodedFileURL:fileURL];</div><div class="line">        </div><div class="line">        error = <span class="literal">nil</span>;</div><div class="line">        <span class="built_in">NSDictionary</span> *dictionary = [fileURL resourceValuesForKeys:keys error:&amp;error];</div><div class="line">        TMDiskCacheError(error);</div><div class="line">        </div><div class="line">        <span class="built_in">NSDate</span> *date = [dictionary objectForKey:<span class="built_in">NSURLContentModificationDateKey</span>];</div><div class="line">        <span class="keyword">if</span> (date &amp;&amp; key)</div><div class="line">            [_dates setObject:date forKey:key];</div><div class="line">        </div><div class="line">        <span class="built_in">NSNumber</span> *fileSize = [dictionary objectForKey:<span class="built_in">NSURLTotalFileAllocatedSizeKey</span>];</div><div class="line">        <span class="keyword">if</span> (fileSize) &#123;</div><div class="line">            [_sizes setObject:fileSize forKey:key];</div><div class="line">            byteCount += [fileSize unsignedIntegerValue];</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    <span class="keyword">if</span> (byteCount &gt; <span class="number">0</span>)</div><div class="line">        <span class="keyword">self</span>.byteCount = byteCount; <span class="comment">// atomic</span></div><div class="line">&#125;</div><div class="line"></div><div class="line">- (<span class="built_in">NSString</span> *)keyForEncodedFileURL:(<span class="built_in">NSURL</span> *)url &#123;</div><div class="line">    <span class="built_in">NSString</span> *fileName = [url lastPathComponent];</div><div class="line">    <span class="keyword">if</span> (!fileName)</div><div class="line">        <span class="keyword">return</span> <span class="literal">nil</span>;</div><div class="line"></div><div class="line">    <span class="keyword">return</span> [<span class="keyword">self</span> decodedString:fileName];</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>由此看出, 对于缓存数据来说, <code>key 经过编码后设为缓存文件名,  value 经过归档后写入文件</code>.  </p>
+<p>至此, 所有的准备工作都基本做完, 下面开始存取数据了.</p>
+<h3 id="同步-异步的进行读写数据"><a href="#同步-异步的进行读写数据" class="headerlink" title="同步/异步的进行读写数据"></a>同步/异步的进行读写数据</h3><h4 id="异步的进行读写数据"><a href="#异步的进行读写数据" class="headerlink" title="异步的进行读写数据"></a>异步的进行读写数据</h4><p>相关 API:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)objectForKey:(<span class="built_in">NSString</span> *)key block:(TMDiskCacheObjectBlock)block;</div><div class="line">- (<span class="keyword">void</span>)setObject:(<span class="keyword">id</span> &lt;<span class="built_in">NSCoding</span>&gt;)object forKey:(<span class="built_in">NSString</span> *)key block:(TMDiskCacheObjectBlock)block;</div></pre></td></tr></table></figure>
+<p>先来看看写操作如何实现的, 我就不贴源码具体实现了, 省的看的费劲, 只看关键部位吧~~~你懂的, 嘻嘻.</p>
+<h5 id="写入缓存"><a href="#写入缓存" class="headerlink" title="写入缓存"></a>写入缓存</h5><ol>
+<li><p>写操作被 commit 到串行队列中, 保证了写缓存的时候线程安全:</p>
+ <figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">dispatch_async</span>(_queue, ^&#123; </div><div class="line">    <span class="comment">// 写操作</span></div><div class="line">    <span class="comment">// ...</span></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+</li>
+<li><p>将传入的对象进行归档处理, 所以要缓存的对象一定要遵守<code>NSCoding</code>协议, 并实现相关方法:</p>
+ <figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">BOOL</span> written = [<span class="built_in">NSKeyedArchiver</span> archiveRootObject:object toFile:[fileURL path]];</div></pre></td></tr></table></figure>
+</li>
+<li><p>更新缓存文件的修改时间, 不管是新加入的缓存数据还是已有的缓存数据进行更新, 都会修改对应的时间为当前时间:</p>
+ <figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">[strongSelf setFileModificationDate:now forURL:fileURL];</div></pre></td></tr></table></figure>
+</li>
+<li><p>下面是针对缓存空间大小的处理, 比较重要的一步, 根据最新缓存的数据更新总共已经使用的磁盘空间大小, 如果超过预设磁盘空间上限, 则需要删除一些数据以达到不超过上限的目的, 那以什么规则来删除超过缓存上限的部分数据呢? <code>TMMemoryCache</code>的优化策略是根据操作时间的先后顺序, 即操作时间早的数据, 认为你使用的概率比较低, 所以就优先删除掉, <code>TMDiskCache</code>优化策略跟<code>TMMemoryCache</code>相同, 先删除最早的数据. 这也是以文件系统的形式缓存数据的缺点, 不能进行有效的算法.</p>
+<ul>
+<li><p>更新缓存空间大小.</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">NSNumber</span> *oldEntry = [strongSelf-&gt;_sizes objectForKey:key];</div><div class="line"></div><div class="line"><span class="keyword">if</span> ([oldEntry isKindOfClass:[<span class="built_in">NSNumber</span> <span class="keyword">class</span>]])&#123;</div><div class="line">    strongSelf.byteCount = strongSelf-&gt;_byteCount - [oldEntry unsignedIntegerValue];</div><div class="line">&#125;</div><div class="line"></div><div class="line">[strongSelf-&gt;_sizes setObject:diskFileSize forKey:key];</div><div class="line">strongSelf.byteCount = strongSelf-&gt;_byteCount + [diskFileSize unsignedIntegerValue]; <span class="comment">// atomic</span></div></pre></td></tr></table></figure>
+</li>
+<li><p>删除超出部分空间的缓存数据.</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">if</span> (strongSelf-&gt;_byteLimit &gt; <span class="number">0</span> &amp;&amp; strongSelf-&gt;_byteCount &gt; strongSelf-&gt;_byteLimit)</div><div class="line">               [strongSelf trimToSizeByDate:strongSelf-&gt;_byteLimit block:<span class="literal">nil</span>];</div></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+</ol>
+<p>至此异步写入缓存数据完成, 注意:</p>
+<blockquote>
+<p><code>_dates</code>, <code>_sizes</code>中的 key 并没有经过编码, 只有缓存文件名才是经过编码的.</p>
+</blockquote>
+<h5 id="读取缓存"><a href="#读取缓存" class="headerlink" title="读取缓存"></a>读取缓存</h5><p>相关 API:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">- (<span class="keyword">id</span> &lt;<span class="built_in">NSCoding</span>&gt;)objectForKey:(<span class="built_in">NSString</span> *)key;</div><div class="line">- (<span class="keyword">void</span>)objectForKey:(<span class="built_in">NSString</span> *)key block:(TMDiskCacheObjectBlock)block;</div></pre></td></tr></table></figure>
+<p>也是看看异步的读取缓存, 根据上面写入缓存的步骤可以推测读取的步骤, 无非就是把 key 进行编码, 找到缓存文件, 再解档缓存文件内容, 最后更新操作时间, 主线就这几步, 其余的就是加点”配料” - will / did block 之类的时序控制类操作.</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">dispatch_async</span>(_queue, ^&#123;</div><div class="line">        TMDiskCache *strongSelf = weakSelf;</div><div class="line">        <span class="keyword">if</span> (!strongSelf)</div><div class="line">            <span class="keyword">return</span>;</div><div class="line">        </div><div class="line">        <span class="built_in">NSURL</span> *fileURL = [strongSelf encodedFileURLForKey:key];</div><div class="line">        <span class="keyword">id</span> &lt;<span class="built_in">NSCoding</span>&gt; object = <span class="literal">nil</span>;</div><div class="line">        </div><div class="line">        <span class="keyword">if</span> ([[<span class="built_in">NSFileManager</span> defaultManager] fileExistsAtPath:[fileURL path]]) &#123;</div><div class="line">            <span class="keyword">@try</span> &#123;</div><div class="line">                object = [<span class="built_in">NSKeyedUnarchiver</span> unarchiveObjectWithFile:[fileURL path]];</div><div class="line">            &#125;</div><div class="line">            <span class="keyword">@catch</span> (<span class="built_in">NSException</span> *exception) &#123;</div><div class="line">                <span class="built_in">NSError</span> *error = <span class="literal">nil</span>;</div><div class="line">                [[<span class="built_in">NSFileManager</span> defaultManager] removeItemAtPath:[fileURL path] error:&amp;error];</div><div class="line">                TMDiskCacheError(error);</div><div class="line">            &#125;</div><div class="line">            </div><div class="line">            [strongSelf setFileModificationDate:now forURL:fileURL];</div><div class="line">        &#125;</div><div class="line">        </div><div class="line">        block(strongSelf, key, object, fileURL);</div><div class="line">    &#125;);</div></pre></td></tr></table></figure>
+<p>代码中通过<code>@ try</code>, <code>@catch</code>抛出异常, 如果解档缓存文件内容失败, 直接删除该缓存文件, 简单不做作, 直接了当! 额, 也许不近人情, 好歹你告诉我错误信息是什么, 让我来决定删不删嘛. </p>
+<h4 id="同步的写入-读取缓存"><a href="#同步的写入-读取缓存" class="headerlink" title="同步的写入/读取缓存"></a>同步的写入/读取缓存</h4><p>都是采用<code>dispatch_semaphore_t</code>信号量的形式来实现的.</p>
+<h3 id="同步-异步的进行删除数据"><a href="#同步-异步的进行删除数据" class="headerlink" title="同步/异步的进行删除数据"></a>同步/异步的进行删除数据</h3><p>相关 API:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)removeObjectForKey:(<span class="built_in">NSString</span> *)key;</div><div class="line">- (<span class="keyword">void</span>)removeObjectForKey:(<span class="built_in">NSString</span> *)key block:(TMDiskCacheObjectBlock)block;</div></pre></td></tr></table></figure>
+<p>我们只分析异步的删除缓存数据, 同步的跟其它同步操作一样.<br>既然知道怎么写入缓存, 那删除应该也没什么问题了, 找到要删除的文件路径, 删除该缓存文件即可. 所以步骤应该是:</p>
+<ol>
+<li>key 进行编码, 再拼接成完整的缓存文件的绝对路径.</li>
+<li>删除文件, 其中删除文件做了特殊的步骤, 但是不影响整个删除流程, 后面会讲解.</li>
+<li>删除<code>_dates</code>,<code>_sizes</code>中的键值对, 更新总用使用的缓存空间大小.</li>
+</ol>
+<blockquote>
+<p>注意删除文件的时候并没有直接删除, 而是把待删除文件移到临时目录 <code>tmp</code>下的缓存目录里, 创建了一个新的串行队列进行删除操作.</p>
+</blockquote>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">BOOL</span> trashed = [TMDiskCache moveItemAtURLToTrash:fileURL];</div><div class="line"><span class="keyword">if</span> (!trashed)</div><div class="line">     <span class="keyword">return</span> <span class="literal">NO</span>;</div><div class="line"></div><div class="line">[TMDiskCache emptyTrash];</div></pre></td></tr></table></figure>
+<h3 id="同步-异步的获取缓存路径"><a href="#同步-异步的获取缓存路径" class="headerlink" title="同步/异步的获取缓存路径"></a>同步/异步的获取缓存路径</h3><p>相关 API:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)fileURLForKey:(<span class="built_in">NSString</span> *)key block:(TMDiskCacheObjectBlock)block;</div><div class="line">- (<span class="built_in">NSURL</span> *)fileURLForKey:(<span class="built_in">NSString</span> *)key;</div></pre></td></tr></table></figure>
+<p>实现非常简单:</p>
+<ol>
+<li>对 key 进行编码, 拼接完整缓存文件路径.</li>
+<li>更新缓存文件操作时间.</li>
+</ol>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">NSURL</span> *fileURL = [strongSelf encodedFileURLForKey:key];</div><div class="line"></div><div class="line"><span class="keyword">if</span> ([[<span class="built_in">NSFileManager</span> defaultManager] fileExistsAtPath:[fileURL path]]) &#123;</div><div class="line">    [strongSelf setFileModificationDate:now forURL:fileURL];</div><div class="line">&#125; <span class="keyword">else</span> &#123;</div><div class="line">    fileURL = <span class="literal">nil</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<h3 id="同步-异步的根据缓存时间或者缓存大小来削减磁盘空间"><a href="#同步-异步的根据缓存时间或者缓存大小来削减磁盘空间" class="headerlink" title="同步/异步的根据缓存时间或者缓存大小来削减磁盘空间"></a>同步/异步的根据缓存时间或者缓存大小来削减磁盘空间</h3><p>这部分操作跟<code>TMMemoryCache</code>的实现类似, 相关 API: </p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)trimToDate:(<span class="built_in">NSDate</span> *)date;</div><div class="line">- (<span class="keyword">void</span>)trimToDate:(<span class="built_in">NSDate</span> *)date block:(TMDiskCacheBlock)block;</div><div class="line"></div><div class="line">- (<span class="keyword">void</span>)trimToSize:(<span class="built_in">NSUInteger</span>)byteCount;</div><div class="line">- (<span class="keyword">void</span>)trimToSize:(<span class="built_in">NSUInteger</span>)byteCount block:(TMDiskCacheBlock)block;</div><div class="line"></div><div class="line">- (<span class="keyword">void</span>)trimToSizeByDate:(<span class="built_in">NSUInteger</span>)byteCount;</div><div class="line">- (<span class="keyword">void</span>)trimToSizeByDate:(<span class="built_in">NSUInteger</span>)byteCount block:(TMDiskCacheBlock)block;</div></pre></td></tr></table></figure>
+<p>第一组, 根据缓存时间来削减缓存空间, 如果缓存数据的缓存时间超过了设置的<code>date</code>, 则会被删除.<br>第二组, 根据缓存大小来削减缓存空间, 如果缓存数据的缓存大小超过了指定的<code>byteCount</code>, 则会被删除.<br>第三组, 根据操作时间的先后顺序, 来削减超过了指定缓存大小的空间.</p>
+<p>实现大致都相同, 无非就是对时间进行排序, 然后把 key 进行编码, 拼接路径, 移动缓存文件到 tmp目录下, 再清空 tmp 目录. 注意一点, 无论是按照缓存时间还是缓存大小, 都是升序排序, 最先删除的都是<code>最早的或最小的</code>数据.</p>
+<h3 id="设置磁盘缓存空间上限-磁盘缓存时间上限"><a href="#设置磁盘缓存空间上限-磁盘缓存时间上限" class="headerlink" title="设置磁盘缓存空间上限, 磁盘缓存时间上限"></a>设置磁盘缓存空间上限, 磁盘缓存时间上限</h3><p>源码实现:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div></pre></td><td class="code"><pre><div class="line">- (<span class="built_in">NSUInteger</span>)byteLimit &#123;</div><div class="line">    __block <span class="built_in">NSUInteger</span> byteLimit = <span class="number">0</span>;</div><div class="line">    </div><div class="line">    <span class="built_in">dispatch_sync</span>(_queue, ^&#123;</div><div class="line">        byteLimit = _byteLimit;</div><div class="line">    &#125;);</div><div class="line">    </div><div class="line">    <span class="keyword">return</span> byteLimit;</div><div class="line">&#125;</div><div class="line"></div><div class="line">- (<span class="keyword">void</span>)setByteLimit:(<span class="built_in">NSUInteger</span>)byteLimit &#123;</div><div class="line">    __<span class="keyword">weak</span> TMDiskCache *weakSelf = <span class="keyword">self</span>;</div><div class="line">    </div><div class="line">    dispatch_barrier_async(_queue, ^&#123;</div><div class="line">        TMDiskCache *strongSelf = weakSelf;</div><div class="line">        <span class="keyword">if</span> (!strongSelf)</div><div class="line">            <span class="keyword">return</span>;</div><div class="line">        </div><div class="line">        strongSelf-&gt;_byteLimit = byteLimit;</div><div class="line">        </div><div class="line">        <span class="keyword">if</span> (byteLimit &gt; <span class="number">0</span>)</div><div class="line">            [strongSelf trimDiskToSizeByDate:byteLimit];</div><div class="line">    &#125;);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>设置缓存空间上限的时候采用<code>dispatch_barrier_async</code>栅栏方法, 我不知道作者为何这么写, 多此一举! 本来就是串行队列了, 就能够保证线程安全, 加<code>栅栏</code>方法没什么意义. 现在应该注意的不是线程安全, 而是<code>线程死锁</code>的问题. 所以在 API 接口中有个⚠️警告</p>
+<blockquote>
+<p>@warning Do not read this property on the <sharedqueue> (including asynchronous method blocks).</sharedqueue></p>
+</blockquote>
+<p>意思是不要在 <code>shareQueue</code> 和接口里面的任何 API 的异步 block 中去读这个属性, 为什么呢?  因为<code>TMDiskCache</code>所有的读写删除操作都是放在<code>Serial Queue</code>串行队列中的, 也就是<code>shareQueue</code>队列, 天啦噜…这不造成死锁才怪呢! 警告还写这么不明显.形如下面的是<code>错误❌</code>的用法:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">[diskCache removeObjectForKey:<span class="string">@"profileKey"</span> block:^(TMDiskCache *cache, <span class="built_in">NSString</span> *key, <span class="keyword">id</span>&lt;<span class="built_in">NSCoding</span>&gt; object, <span class="built_in">NSURL</span> *fileURL) &#123;</div><div class="line">        <span class="built_in">NSLog</span>(<span class="string">@"%ld"</span>, diskCache.byteLimit);</div><div class="line"> &#125;];</div></pre></td></tr></table></figure>
+<p>因为在<code>removeObjectForKey</code>之类的方法中会同步执行传入的 block 操作, 如果在 block 里面再提交新的任务到串行队列中, 再同步执行, 必然死锁. 因为外层的 block 需要等待新提交的 block 执行完毕才能执行完成, 然而新提交的 block 需要等待外层 block 执行完才能执行, 两者相互依赖对方执行完才能执行完成, 就造成<code>死锁</code>了.   </p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">if</span> (block)</div><div class="line">    block(strongSelf, key, <span class="literal">nil</span>, fileURL);</div><div class="line">``` </div><div class="line">上一篇分析了 `TMMemoryCache` 容易造成性能消耗严重, 而`TMDiskCache`使用不当容易造成`死锁.`</div><div class="line"></div><div class="line"><span class="meta">### 各类 will / did block, 以及后台操作</span></div><div class="line"></div><div class="line">will / did block 穿插在各类异步操作中, 非常简单, 看看即可.</div><div class="line"></div><div class="line">```Objc</div><div class="line"><span class="keyword">if</span> (strongSelf-&gt;_willAddObjectBlock)</div><div class="line">    strongSelf-&gt;_willAddObjectBlock(strongSelf, key, object, fileURL);</div></pre></td></tr></table></figure>
+<p>其中后台操作有点意思, 创建一个全局的<code>后台管理者</code>遵守<code>TMCacheBackgroundTaskManager</code>协议, 实现其中的两个方法:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">- (<span class="built_in">UIBackgroundTaskIdentifier</span>)beginBackgroundTask;</div><div class="line">- (<span class="keyword">void</span>)endBackgroundTask:(<span class="built_in">UIBackgroundTaskIdentifier</span>)identifier;</div></pre></td></tr></table></figure>
+<p>然后调用设置方法, 给 <code>TMDiskCache</code>对象设置后台管理者.</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">+ (<span class="keyword">void</span>)setBackgroundTaskManager:(<span class="keyword">id</span> &lt;TMCacheBackgroundTaskManager&gt;)backgroundTaskManager;</div></pre></td></tr></table></figure>
+<p>在后台任务开始之前调用 <code>beginBackgroundTask</code> 方法, 结束后台任务之前调用 <code>endBackgroundTask</code>, 就能在后台管理者里面监听到什么时候进入后台操作, 什么时候结束后台操作了.<br>具体做法:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">UIBackgroundTaskIdentifier</span> taskID = [TMCacheBackgroundTaskManager beginBackgroundTask];</div><div class="line"></div><div class="line"><span class="built_in">dispatch_async</span>(_queue, ^&#123; </div><div class="line">      TMDiskCache *strongSelf = weakSelf;</div><div class="line">        <span class="keyword">if</span> (!strongSelf) &#123;</div><div class="line">            [TMCacheBackgroundTaskManager endBackgroundTask:taskID];</div><div class="line">            <span class="keyword">return</span>;</div><div class="line">        &#125;</div><div class="line"></div><div class="line">      <span class="comment">// 执行后台任务</span></div><div class="line">      <span class="comment">// 比如: 写缓存, 取缓存, 删除缓存等等.</span></div><div class="line"></div><div class="line">     [TMCacheBackgroundTaskManager endBackgroundTask:taskID];</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>因为磁盘的操作可能耗时非常长, 不可能一直等待, 因此通过这种全局的方式来感知异步操作的开始和结束, 从而执行响应事件. </p>
+<h3 id="清空临时存储区"><a href="#清空临时存储区" class="headerlink" title="清空临时存储区"></a>清空临时存储区</h3><p>根据上面可以知道, 删除缓存文件的时候, 先会在<code>tmp</code>下创建”回收目录”, 需要删除的缓存文件统一放进回收目录下, 下面是获取回收目录的URL 路径, 没有就创建, 有则返回, 只创建一次:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div></pre></td><td class="code"><pre><div class="line">+ (<span class="built_in">NSURL</span> *)sharedTrashURL &#123;</div><div class="line">    <span class="keyword">static</span> <span class="built_in">NSURL</span> *sharedTrashURL;</div><div class="line">    <span class="keyword">static</span> <span class="built_in">dispatch_once_t</span> predicate;</div><div class="line">    </div><div class="line">    <span class="built_in">dispatch_once</span>(&amp;predicate, ^&#123;</div><div class="line">        sharedTrashURL = [[[<span class="built_in">NSURL</span> alloc] initFileURLWithPath:<span class="built_in">NSTemporaryDirectory</span>()] URLByAppendingPathComponent:TMDiskCachePrefix isDirectory:<span class="literal">YES</span>];</div><div class="line">        </div><div class="line">        <span class="keyword">if</span> (![[<span class="built_in">NSFileManager</span> defaultManager] fileExistsAtPath:[sharedTrashURL path]]) &#123;</div><div class="line">            <span class="built_in">NSError</span> *error = <span class="literal">nil</span>;</div><div class="line">            [[<span class="built_in">NSFileManager</span> defaultManager] createDirectoryAtURL:sharedTrashURL</div><div class="line">                                     withIntermediateDirectories:<span class="literal">YES</span></div><div class="line">                                                      attributes:<span class="literal">nil</span></div><div class="line">                                                           error:&amp;error];</div><div class="line">            TMDiskCacheError(error);</div><div class="line">        &#125;</div><div class="line">    &#125;);</div><div class="line">    </div><div class="line">    <span class="keyword">return</span> sharedTrashURL;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>创建一个清空操作专属的串行队列<code>TrashQueue</code>, 并且使用<code>dispatch_set_target_queue</code>方法修改<code>TrashQueue</code>的优先级, 并与全局并发队列<code>global_queue</code> 的后台优先级一致. 因为<code>tmp</code>目录的情况操作不是那么的重要, 即使我们不手动清除, 系统也会在恰当的时候清除, 所以这里把<code>TrashQueue</code>队列的优先级降低.</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line">+ (<span class="built_in">dispatch_queue_t</span>)sharedTrashQueue &#123;</div><div class="line">    <span class="keyword">static</span> <span class="built_in">dispatch_queue_t</span> trashQueue;</div><div class="line">    <span class="keyword">static</span> <span class="built_in">dispatch_once_t</span> predicate;</div><div class="line">    </div><div class="line">    <span class="built_in">dispatch_once</span>(&amp;predicate, ^&#123;</div><div class="line">        <span class="built_in">NSString</span> *queueName = [[<span class="built_in">NSString</span> alloc] initWithFormat:<span class="string">@"%@.trash"</span>, TMDiskCachePrefix];</div><div class="line">        trashQueue = dispatch_queue_create([queueName UTF8String], DISPATCH_QUEUE_SERIAL);</div><div class="line">        dispatch_set_target_queue(trashQueue, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, <span class="number">0</span>));</div><div class="line">    &#125;);</div><div class="line">    </div><div class="line">    <span class="keyword">return</span> trashQueue;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>类方法, 把原本在<code>Caches</code>下的缓存文件移动进<code>tmp</code>目录下的回收目录.</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line">+ (<span class="built_in">BOOL</span>)moveItemAtURLToTrash:(<span class="built_in">NSURL</span> *)itemURL &#123;</div><div class="line">    <span class="keyword">if</span> (![[<span class="built_in">NSFileManager</span> defaultManager] fileExistsAtPath:[itemURL path]])</div><div class="line">        <span class="keyword">return</span> <span class="literal">NO</span>;</div><div class="line">    </div><div class="line">    <span class="built_in">NSError</span> *error = <span class="literal">nil</span>;</div><div class="line">    <span class="built_in">NSString</span> *uniqueString = [[<span class="built_in">NSProcessInfo</span> processInfo] globallyUniqueString];</div><div class="line">    <span class="built_in">NSURL</span> *uniqueTrashURL = [[TMDiskCache sharedTrashURL] URLByAppendingPathComponent:uniqueString];</div><div class="line">    <span class="built_in">BOOL</span> moved = [[<span class="built_in">NSFileManager</span> defaultManager] moveItemAtURL:itemURL toURL:uniqueTrashURL error:&amp;error];</div><div class="line">    TMDiskCacheError(error);</div><div class="line">    <span class="keyword">return</span> moved;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>把清除操作添加到<code>TrashQueue</code>中异步执行, 在该方法中遍历回收目录下所有的缓存文件, 依次进行删除:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line">+ (<span class="keyword">void</span>)emptyTrash &#123;</div><div class="line">    <span class="built_in">UIBackgroundTaskIdentifier</span> taskID = [TMCacheBackgroundTaskManager beginBackgroundTask];</div><div class="line">    </div><div class="line">    <span class="built_in">dispatch_async</span>([<span class="keyword">self</span> sharedTrashQueue], ^&#123;</div><div class="line">        <span class="built_in">NSError</span> *error = <span class="literal">nil</span>;</div><div class="line">        <span class="built_in">NSArray</span> *trashedItems = [[<span class="built_in">NSFileManager</span> defaultManager] contentsOfDirectoryAtURL:[<span class="keyword">self</span> sharedTrashURL]</div><div class="line">                                                              includingPropertiesForKeys:<span class="literal">nil</span></div><div class="line">                                                                                 options:<span class="number">0</span></div><div class="line">                                                                                   error:&amp;error];</div><div class="line">        TMDiskCacheError(error);</div><div class="line">        </div><div class="line">        <span class="keyword">for</span> (<span class="built_in">NSURL</span> *trashedItemURL <span class="keyword">in</span> trashedItems) &#123;</div><div class="line">            <span class="built_in">NSError</span> *error = <span class="literal">nil</span>;</div><div class="line">            [[<span class="built_in">NSFileManager</span> defaultManager] removeItemAtURL:trashedItemURL error:&amp;error];</div><div class="line">            TMDiskCacheError(error);</div><div class="line">        &#125;</div><div class="line">        </div><div class="line">        [TMCacheBackgroundTaskManager endBackgroundTask:taskID];</div><div class="line">    &#125;);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>其实我们只要看一下删除操作在哪里执行的, 就能明白为何作者要创建一个专门用于删除数据的串行队列了. <code>emptyTrash</code>方法调用是在读写操作的串行队列<code>queue</code>中, 方法调用后面还有<code>_didRemoveObjectBlock</code>等待执行, 如果删除数据量比较大且删除操作在<code>queue</code>中, 将阻塞当前线程, 那么<code>_didRemoveObjectBlock</code>会等待许久才能回调, 况且删除操作对于响应用户事件而言不是那么的重要, 所以把需要删除的缓存文件放进<code>tmp</code>目录下, 创建新的低优先级的串行队列来进行删除操作.  这点值得学习!</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">[TMDiskCache emptyTrash];</div></pre></td></tr></table></figure>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><ol>
+<li>使用<code>TMDiskCache</code>姿势要正确, 否则容易造成<code>死锁</code>.</li>
+<li>删除缓存的思路值得借鉴.  </li>
+</ol>
+<p>欢迎大家斧正!</p>
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/TMCache/" rel="tag"># TMCache</a>
+          
+            <a href="/tags/缓存/" rel="tag"># 缓存</a>
+          
+        </div>
+      
+
+      
+        
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2016/02/27/TMCache源码分析之TMMemoryCache内存缓存/" rel="next" title="TMCache源码分析<一> TMMemoryCache内存缓存">
+                <i class="fa fa-chevron-left"></i> TMCache源码分析<一> TMMemoryCache内存缓存
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+          
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/images/avatar.jpeg"
+               alt="chengzhipeng" />
+          <p class="site-author-name" itemprop="name">chengzhipeng</p>
+           
+              <p class="site-description motion-element" itemprop="description">格物致知</p>
+          
+        </div>
+        <nav class="site-state motion-element">
+        
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives">
+                <span class="site-state-item-count">4</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-categories">
+              <a href="/categories">
+                <span class="site-state-item-count">2</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-tags">
+              <a href="/tags">
+                <span class="site-state-item-count">5</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#初始化方法"><span class="nav-number">1.</span> <span class="nav-text">初始化方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#同步-异步的进行读写数据"><span class="nav-number">2.</span> <span class="nav-text">同步/异步的进行读写数据</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#异步的进行读写数据"><span class="nav-number">2.1.</span> <span class="nav-text">异步的进行读写数据</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#写入缓存"><span class="nav-number">2.1.1.</span> <span class="nav-text">写入缓存</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#读取缓存"><span class="nav-number">2.1.2.</span> <span class="nav-text">读取缓存</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#同步的写入-读取缓存"><span class="nav-number">2.2.</span> <span class="nav-text">同步的写入/读取缓存</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#同步-异步的进行删除数据"><span class="nav-number">3.</span> <span class="nav-text">同步/异步的进行删除数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#同步-异步的获取缓存路径"><span class="nav-number">4.</span> <span class="nav-text">同步/异步的获取缓存路径</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#同步-异步的根据缓存时间或者缓存大小来削减磁盘空间"><span class="nav-number">5.</span> <span class="nav-text">同步/异步的根据缓存时间或者缓存大小来削减磁盘空间</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#设置磁盘缓存空间上限-磁盘缓存时间上限"><span class="nav-number">6.</span> <span class="nav-text">设置磁盘缓存空间上限, 磁盘缓存时间上限</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#清空临时存储区"><span class="nav-number">7.</span> <span class="nav-text">清空临时存储区</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#总结"><span class="nav-number">8.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy;  2015 - 
+  <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">chengzhipeng</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Muse
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+
+  
+
+</body>
+</html>

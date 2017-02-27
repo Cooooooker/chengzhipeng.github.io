@@ -1,0 +1,765 @@
+<!doctype html>
+
+
+
+  
+
+
+<html class="theme-next muse use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+    
+      
+    
+
+    
+  
+
+  
+
+  
+    
+      
+    
+
+    
+  
+
+  
+    
+      
+    
+
+    
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Monda:300,300italic,400,400italic,700,700italic|Roboto Slab:300,300italic,400,400italic,700,700italic|Lobster Two:300,300italic,400,400italic,700,700italic|PT Mono:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="Swift,关联对象," />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.0" />
+
+
+
+
+
+
+<meta name="description" content="Objective-C 最让人诟病的也许就是不能给已有类添加属性, 但是可以通过 Objective-C 的运行时机制关联自定义属性到对象上, 几乎弥补了这个痛点.  
+Swift Extension 比 Objective-C Category 增色不少, extension 能够给已有类添加计算型属性, 这已经是很大的进步, 但是仍然不能添加存储属性. Swift 中也可以使用 Objecti">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Swift在扩展中关联对象">
+<meta property="og:url" content="http://yoursite.com/2015/12/27/Swift在扩展中关联对象/index.html">
+<meta property="og:site_name" content="Cheng'blog">
+<meta property="og:description" content="Objective-C 最让人诟病的也许就是不能给已有类添加属性, 但是可以通过 Objective-C 的运行时机制关联自定义属性到对象上, 几乎弥补了这个痛点.  
+Swift Extension 比 Objective-C Category 增色不少, extension 能够给已有类添加计算型属性, 这已经是很大的进步, 但是仍然不能添加存储属性. Swift 中也可以使用 Objecti">
+<meta property="og:image" content="http://upload-images.jianshu.io/upload_images/4238758-3381fdc45c5a8855.jpeg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240">
+<meta property="og:updated_time" content="2017-02-27T16:18:50.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Swift在扩展中关联对象">
+<meta name="twitter:description" content="Objective-C 最让人诟病的也许就是不能给已有类添加属性, 但是可以通过 Objective-C 的运行时机制关联自定义属性到对象上, 几乎弥补了这个痛点.  
+Swift Extension 比 Objective-C Category 增色不少, extension 能够给已有类添加计算型属性, 这已经是很大的进步, 但是仍然不能添加存储属性. Swift 中也可以使用 Objecti">
+<meta name="twitter:image" content="http://upload-images.jianshu.io/upload_images/4238758-3381fdc45c5a8855.jpeg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    sidebar: {"position":"left","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2015/12/27/Swift在扩展中关联对象/"/>
+
+
+
+
+
+  <title> Swift在扩展中关联对象 | Cheng'blog </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container one-collumn sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Cheng'blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/12/27/Swift在扩展中关联对象/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="chengzhipeng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.jpeg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Cheng'blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+            
+            
+              
+                Swift在扩展中关联对象
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2015-12-27T00:00:00+08:00">
+                2015-12-27
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Swift/" itemprop="url" rel="index">
+                    <span itemprop="name">Swift</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>Objective-C 最让人诟病的也许就是不能给已有类添加属性, 但是可以通过 Objective-C 的运行时机制关联自定义属性到对象上, 几乎弥补了这个痛点.  </p>
+<p>Swift Extension 比 Objective-C Category 增色不少, extension 能够给已有类添加计算型属性, 这已经是很大的进步, 但是仍然不能添加存储属性. Swift 中也可以使用 Objective-C runtime 的关联对象(<a href="http://nshipster.cn/associated-objects/" target="_blank" rel="external">Associated Objects</a>)的方式添加属性, 弥补这一痛点.</p>
+<a id="more"></a>
+<h2 id="关联对象-Associated-Objects"><a href="#关联对象-Associated-Objects" class="headerlink" title="关联对象(Associated Objects)"></a>关联对象(Associated Objects)</h2><p>Swift 中提供三个与 Objective-C 类似的方法将自定义的属性关联到对象上:</p>
+<ol>
+<li><code>objc_setAssociatedObject</code></li>
+<li><code>objc_getAssociatedObject</code></li>
+<li><code>objc_removeAssociatedObjects</code></li>
+</ol>
+<blockquote>
+<p>注意: 使用 objc_removeAssociatedObjects 时要小心, 这个方法会删除对象关联的所有属性, 就可能导致把别人添加的关联属性也删掉. 如果要删除某一个属性, 使用 objc_setAssociatedObject 方法, value 置为 nil.</p>
+</blockquote>
+<p>下面给 UIView 添加三种不同类型的属性: isShow, displayName, width.</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div></pre></td><td class="code"><pre><div class="line"><span class="class"><span class="keyword">extension</span> <span class="title">UIView</span> </span>&#123;</div><div class="line">    <span class="comment">// 嵌套结构体</span></div><div class="line">    <span class="keyword">private</span> <span class="class"><span class="keyword">struct</span> <span class="title">AssociatedKeys</span> </span>&#123;</div><div class="line">        <span class="keyword">static</span> <span class="keyword">var</span> isShowKey = <span class="string">"isShowKey"</span></div><div class="line">        <span class="keyword">static</span> <span class="keyword">var</span> displayNameKey = <span class="string">"displayNameKey"</span></div><div class="line">        <span class="keyword">static</span> <span class="keyword">var</span> widthKey = <span class="string">"widthKey"</span></div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    <span class="comment">// Bool 类型</span></div><div class="line">    <span class="keyword">var</span> isShow: <span class="type">Bool</span> &#123;</div><div class="line">        <span class="keyword">get</span> &#123;</div><div class="line">            <span class="keyword">return</span> objc_getAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.isShowKey) <span class="keyword">as</span>! <span class="type">Bool</span></div><div class="line">        &#125;</div><div class="line">        <span class="keyword">set</span> &#123;</div><div class="line">            objc_setAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.isShowKey, newValue, objc_AssociationPolicy.<span class="type">OBJC_ASSOCIATION_RETAIN_NONATOMIC</span>)</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    <span class="comment">// String 类型</span></div><div class="line">    <span class="keyword">var</span> displayName: <span class="type">String</span>? &#123;</div><div class="line">        <span class="keyword">get</span> &#123;</div><div class="line">            <span class="keyword">return</span> objc_getAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.displayNameKey) <span class="keyword">as</span>? <span class="type">String</span></div><div class="line">        &#125;</div><div class="line">        <span class="keyword">set</span> &#123;</div><div class="line">            objc_setAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.displayNameKey, newValue, objc_AssociationPolicy.<span class="type">OBJC_ASSOCIATION_COPY_NONATOMIC</span>)</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    <span class="comment">// Float 类型</span></div><div class="line">    <span class="keyword">var</span> width: <span class="type">Float</span> &#123;</div><div class="line">        <span class="keyword">get</span> &#123;</div><div class="line">            <span class="keyword">return</span> objc_getAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.widthKey) <span class="keyword">as</span>! <span class="type">Float</span></div><div class="line">        &#125;</div><div class="line">        <span class="keyword">set</span> &#123;</div><div class="line">            objc_setAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.widthKey, newValue, objc_AssociationPolicy.<span class="type">OBJC_ASSOCIATION_RETAIN_NONATOMIC</span>)</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>上述列子说明几点:</p>
+<ul>
+<li>嵌套私有结构体, 声明与扩展属性对应的键(key). <a href="https://developer.apple.com/library/content/documentation/Swift/Conceptual/Swift_Programming_Language/Extensions.html#//apple_ref/doc/uid/TP40014097-CH24-ID151" target="_blank" rel="external">Swift Extension</a> 提供了丰富的功能, 可以在 Extension 中嵌套类型, 使用 private 私有访问控制, 不会污染整个命名空间, 而且能够统一管理关联对象键.</li>
+<li>Swift 的基本类型Int, Float, Double, Bool能够自动隐式地转换成 Objective-C 的 NSNumber 类型, 所以不需要显示的包装成 NSNumber 类型进行关联.</li>
+<li>如果使用 <code>OBJC_ASSOCIATION_ASSIGN</code> 关联策略时要注意, 文档中指出是弱引用, 但不完全等同于 weak, 更像是 unsafe_unretained 引用, 关联对象被释放后,关联属性仍然保留被释放的地址, 如果不小心访问关联属性, 就会造成野指针访问出错.</li>
+</ul>
+<blockquote>
+<p>   Specifies a weak reference to the associated object.</p>
+</blockquote>
+<h2 id="抽取关联对象方法"><a href="#抽取关联对象方法" class="headerlink" title="抽取关联对象方法"></a>抽取关联对象方法</h2><p>我们可以把关联对象的方法提取成公共方法, 在 NSObject 类的 extension 里实现, 只要继承自 NSObject 的类就能够调用关联对象方法, 通过<a href="https://developer.apple.com/library/content/documentation/Swift/Conceptual/Swift_Programming_Language/Generics.html#//apple_ref/doc/uid/TP40014097-CH26-ID179" target="_blank" rel="external">Swift 泛型</a>来关联不同类型的属性.</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="class"><span class="keyword">extension</span> <span class="title">NSObject</span> </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">func</span> <span class="title">setAssociated</span>&lt;T&gt;<span class="params">(value: T, associatedKey: UnsafeRawPointer, policy: objc_AssociationPolicy = objc_AssociationPolicy.OBJC_ASSOCIATION_RETAIN_NONATOMIC)</span></span> -&gt; <span class="type">Void</span> &#123;</div><div class="line">        objc_setAssociatedObject(<span class="keyword">self</span>, associatedKey, value, policy)</div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    <span class="function"><span class="keyword">func</span> <span class="title">getAssociated</span>&lt;T&gt;<span class="params">(associatedKey: UnsafeRawPointer)</span></span> -&gt; <span class="type">T</span>? &#123;</div><div class="line">        <span class="keyword">let</span> value = objc_getAssociatedObject(<span class="keyword">self</span>, associatedKey) <span class="keyword">as</span>? <span class="type">T</span></div><div class="line">        <span class="keyword">return</span> value;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>我们只需要在 UIView+Extension.swift 中调动上面两个方法即可, 目前只支持有可选类型的属性.</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line"><span class="class"><span class="keyword">extension</span> <span class="title">UIView</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> <span class="class"><span class="keyword">struct</span> <span class="title">AssociatedKeys</span> </span>&#123;</div><div class="line">        <span class="keyword">static</span> <span class="keyword">var</span> displayNameKey = <span class="string">"displayNameKey"</span></div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    <span class="keyword">var</span> displayName: <span class="type">String</span>? &#123;</div><div class="line">        <span class="keyword">get</span> &#123;</div><div class="line">            <span class="keyword">return</span> getAssociated(associatedKey: &amp;<span class="type">AssociatedKeys</span>.displayNameKey)</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">set</span> &#123;</div><div class="line">            setAssociated(value: newValue, associatedKey: &amp;<span class="type">AssociatedKeys</span>.displayNameKey)</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<h2 id="关联闭包属性"><a href="#关联闭包属性" class="headerlink" title="关联闭包属性"></a>关联闭包属性</h2><p>开发中有时会给已有类关联闭包属性, 比如给 UIViewController 类添加一个 pushCompletion 的闭包属性, 当导航控制器 push 动作完成后调用该控制器的 pushCompletion 闭包.<br>先按照最基本的方式来关联对象, 如下:</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">typealias</span> pushCompletionClosure = ()-&gt;()</div><div class="line"></div><div class="line"><span class="class"><span class="keyword">extension</span> <span class="title">UIViewController</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> <span class="class"><span class="keyword">struct</span> <span class="title">AssociatedKeys</span> </span>&#123;</div><div class="line">        <span class="keyword">static</span> <span class="keyword">var</span> pushCompletionKey = <span class="string">"pushCompletionKey"</span></div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    <span class="keyword">var</span> pushCompletion: pushCompletionClosure? &#123;</div><div class="line">        <span class="keyword">get</span> &#123;</div><div class="line">            <span class="keyword">return</span> objc_getAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.pushCompletionKey) <span class="keyword">as</span>? pushCompletionClosure</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">set</span> &#123;</div><div class="line">            objc_setAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.pushCompletionKey, newValue, objc_AssociationPolicy.<span class="type">OBJC_ASSOCIATION_COPY_NONATOMIC</span>)</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>开开心心编译一发, 发现编译报错:<br><img src="http://upload-images.jianshu.io/upload_images/4238758-3381fdc45c5a8855.jpeg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="关联闭包报错"><br>定位问题发现出在 objc_setAssociatedObject 这个方法上. 原来闭包属性需要包装一下才能进行关联, 下面给出两种解决办法:</p>
+<ol>
+<li>使用泛型包装闭包属性, 利用 NSObject+Extension.swift 中的 <code>setAssociated</code> 方法来关联闭包.</li>
+<li>创建私有闭包容器类, 利用闭包容器间接关联闭包属性.</li>
+</ol>
+<h3 id="泛型包装闭包属性"><a href="#泛型包装闭包属性" class="headerlink" title="泛型包装闭包属性"></a>泛型包装闭包属性</h3><p>setAssociated 方法需要泛型参数, 当传入闭包后, 就会把闭包包装成泛型.</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">set</span> &#123;</div><div class="line">   setAssociated(value: newValue, associatedKey: &amp;<span class="type">AssociatedKeys</span>.pushCompletionKey)</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<h3 id="闭包容器"><a href="#闭包容器" class="headerlink" title="闭包容器"></a>闭包容器</h3><p>使用闭包容器的方式关联闭包属性, 过程分为两步:</p>
+<ol>
+<li>在 extension 中嵌套创建容器类, 容器类中定义需要关联的闭包属性.</li>
+<li>关联对象时把容器类对象关联到已有类, 间接的就把闭包属性关联到已有类.</li>
+</ol>
+<p>闭包容器的方式是把闭包属性包装到了容器中, 再把容器对象关联到已有类上, 跟泛型包装闭包有异曲同工之处, 因此必须通过容器对象来访问闭包, 如果需要给类关联的闭包属性相对较多, 这种方式也不失为一种好方法, 能统一管理闭包属性, 代码层级结构也比较清晰.</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">typealias</span> pushCompletionClosure = ()-&gt;()</div><div class="line"></div><div class="line"><span class="class"><span class="keyword">extension</span> <span class="title">UIViewController</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> <span class="class"><span class="keyword">struct</span> <span class="title">AssociatedKeys</span> </span>&#123;</div><div class="line">        <span class="keyword">static</span> <span class="keyword">var</span> pushCompletionKey = <span class="string">"pushCompletionKey"</span></div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    <span class="comment">// 嵌套闭包容器类</span></div><div class="line">    <span class="class"><span class="keyword">class</span> <span class="title">closureContainer</span> </span>&#123;</div><div class="line">        <span class="keyword">var</span> pushCompletion: pushCompletionClosure?</div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    <span class="comment">// 关联容器属性</span></div><div class="line">    <span class="keyword">var</span> container: closureContainer? &#123;</div><div class="line">        <span class="keyword">get</span> &#123;</div><div class="line">            <span class="keyword">return</span> objc_getAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.pushCompletionKey) <span class="keyword">as</span>? closureContainer</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">set</span> &#123;</div><div class="line">            objc_setAssociatedObject(<span class="keyword">self</span>, &amp;<span class="type">AssociatedKeys</span>.pushCompletionKey, newValue, objc_AssociationPolicy.<span class="type">OBJC_ASSOCIATION_RETAIN_NONATOMIC</span>)</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><code>代码在这里:</code><br><a href="https://github.com/ChilliCheng/AssociatedObject" target="_blank" rel="external">github</a></p>
+<p>欢迎大家留言斧正!</p>
+<p>参考链接:<br><a href="http://swift.gg/2016/10/11/swift-extensions-can-add-stored-properties/" target="_blank" rel="external">http://swift.gg/2016/10/11/swift-extensions-can-add-stored-properties/</a><br><a href="http://stackoverflow.com/questions/24133058/is-there-a-way-to-set-associated-objects-in-swift/25428409#25428409" target="_blank" rel="external">http://stackoverflow.com/questions/24133058/is-there-a-way-to-set-associated-objects-in-swift/25428409#25428409</a></p>
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Swift/" rel="tag"># Swift</a>
+          
+            <a href="/tags/关联对象/" rel="tag"># 关联对象</a>
+          
+        </div>
+      
+
+      
+        
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2016/02/13/Swift中安全优雅的使用UserDefaults/" rel="prev" title="Swift中安全优雅的使用UserDefaults">
+                Swift中安全优雅的使用UserDefaults <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+          
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/images/avatar.jpeg"
+               alt="chengzhipeng" />
+          <p class="site-author-name" itemprop="name">chengzhipeng</p>
+           
+              <p class="site-description motion-element" itemprop="description">格物致知</p>
+          
+        </div>
+        <nav class="site-state motion-element">
+        
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives">
+                <span class="site-state-item-count">4</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-categories">
+              <a href="/categories">
+                <span class="site-state-item-count">2</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-tags">
+              <a href="/tags">
+                <span class="site-state-item-count">5</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#关联对象-Associated-Objects"><span class="nav-number">1.</span> <span class="nav-text">关联对象(Associated Objects)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#抽取关联对象方法"><span class="nav-number">2.</span> <span class="nav-text">抽取关联对象方法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#关联闭包属性"><span class="nav-number">3.</span> <span class="nav-text">关联闭包属性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#泛型包装闭包属性"><span class="nav-number">3.1.</span> <span class="nav-text">泛型包装闭包属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#闭包容器"><span class="nav-number">3.2.</span> <span class="nav-text">闭包容器</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy;  2015 - 
+  <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">chengzhipeng</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Muse
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+
+  
+
+</body>
+</html>
