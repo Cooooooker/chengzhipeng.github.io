@@ -123,7 +123,7 @@
 基于文件读写.
 基于数据库.  
 基于 mmap 文件内存映射.">
-<meta property="og:updated_time" content="2017-02-27T16:05:00.000Z">
+<meta property="og:updated_time" content="2017-02-27T16:34:38.000Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="TMCache源码分析<二> TMDiskCache磁盘缓存">
 <meta name="twitter:description" content="上篇分析了 TMCache中内存缓存TMMemoryCache的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  
@@ -389,7 +389,7 @@
       
 
       
-        <p><a href="http://www.jianshu.com/p/a8a45c12d2d2" target="_blank" rel="external">上篇分析</a>了 <code>TMCache</code>中内存缓存<code>TMMemoryCache</code>的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  </p>
+        <p><a href="https://chengzhipeng.github.io/2016/02/27/TMCache源码分析之TMMemoryCache内存缓存/" target="_blank" rel="external">上篇分析</a>了 <code>TMCache</code>中内存缓存<code>TMMemoryCache</code>的实现原理, 这篇文章将详细分析磁盘缓存的实现原理.  </p>
 <p>磁盘缓存,顾名思义:将数据存储到磁盘上,由于需要储存的数据量比较大,所以一般读写速度都比内存缓存慢, 但也是非常重要的一项功能, 比如能够实现离线浏览等提升用户体验.  </p>
 <p>磁盘缓存的实现形式大致分为三种:</p>
 <ul>
