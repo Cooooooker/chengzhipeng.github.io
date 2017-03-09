@@ -1,0 +1,765 @@
+<!doctype html>
+
+
+
+  
+
+
+<html class="theme-next muse use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+    
+      
+    
+
+    
+  
+
+  
+
+  
+    
+      
+    
+
+    
+  
+
+  
+    
+      
+    
+
+    
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Monda:300,300italic,400,400italic,700,700italic|Roboto Slab:300,300italic,400,400italic,700,700italic|Lobster Two:300,300italic,400,400italic,700,700italic|PT Mono:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="Objective-C," />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.0" />
+
+
+
+
+
+
+<meta name="description" content="bind 是 ReactiveCocoa的核心方法, 顾名思义:绑定, 跟以往的赋值不同.RAC 封装了很多方法, 底层都是用的 bind, 平常 bind 方法基本不用, 但是理解原理后其它方法很容易理解了, 比如: map, flattenMap等.
+文章目录
+
+使用 bind 方法
+bind 的实现原理
+总结">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ReactiveCocoa核心方法bind的底层实现">
+<meta property="og:url" content="http://yoursite.com/2016/05/01/ReactiveCocoa核心方法bind的底层实现/index.html">
+<meta property="og:site_name" content="Cheng'blog">
+<meta property="og:description" content="bind 是 ReactiveCocoa的核心方法, 顾名思义:绑定, 跟以往的赋值不同.RAC 封装了很多方法, 底层都是用的 bind, 平常 bind 方法基本不用, 但是理解原理后其它方法很容易理解了, 比如: map, flattenMap等.
+文章目录
+
+使用 bind 方法
+bind 的实现原理
+总结">
+<meta property="og:updated_time" content="2017-03-09T15:51:55.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ReactiveCocoa核心方法bind的底层实现">
+<meta name="twitter:description" content="bind 是 ReactiveCocoa的核心方法, 顾名思义:绑定, 跟以往的赋值不同.RAC 封装了很多方法, 底层都是用的 bind, 平常 bind 方法基本不用, 但是理解原理后其它方法很容易理解了, 比如: map, flattenMap等.
+文章目录
+
+使用 bind 方法
+bind 的实现原理
+总结">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    sidebar: {"position":"left","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2016/05/01/ReactiveCocoa核心方法bind的底层实现/"/>
+
+
+
+
+
+  <title> ReactiveCocoa核心方法bind的底层实现 | Cheng'blog </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container one-collumn sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Cheng'blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/05/01/ReactiveCocoa核心方法bind的底层实现/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="跷脚啖牛肉">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.jpeg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Cheng'blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+            
+            
+              
+                ReactiveCocoa核心方法bind的底层实现
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2016-05-01T23:35:21+08:00">
+                2016-05-01
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>bind 是 ReactiveCocoa的核心方法, 顾名思义:绑定, 跟以往的赋值不同.<br>RAC 封装了很多方法, 底层都是用的 bind, 平常 bind 方法基本不用, 但是理解原理后其它方法很容易理解了, 比如: map, flattenMap等.</p>
+<p>文章目录</p>
+<ol>
+<li>使用 bind 方法</li>
+<li>bind 的实现原理</li>
+<li>总结</li>
+</ol>
+<a id="more"></a>
+<h3 id="使用-bind-方法"><a href="#使用-bind-方法" class="headerlink" title="使用 bind 方法"></a>使用 bind 方法</h3><figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">typedef</span> RACSignal * _Nullable (^RACSignalBindBlock)(ValueType _Nullable value, <span class="built_in">BOOL</span> *stop);</div><div class="line">- (RACSignal *)bind:(RACSignalBindBlock (^)(<span class="keyword">void</span>))block;</div></pre></td></tr></table></figure>
+<p>上面是 bind 方法的声明, bind 方法只接收一个返回值是RACSignalBindBlock类型的无参 block. RACSignalBindBlock也是一个 block, 携带两个参数value和 stop, 返回值是 RACSignal类型的信号.<br>下面代码实现一下:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div></pre></td><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)testBind &#123;</div><div class="line">    <span class="comment">// 创建源信号</span></div><div class="line">    RACSignal *sourceSignal = [RACSignal createSignal:^RACDisposable * _Nullable(<span class="keyword">id</span>&lt;RACSubscriber&gt;  _Nonnull subscriber) &#123;</div><div class="line">        </div><div class="line">        [subscriber sendNext:<span class="string">@"hello, "</span>];</div><div class="line">        [subscriber sendCompleted];</div><div class="line">        </div><div class="line">        <span class="keyword">return</span> [RACDisposable disposableWithBlock:^&#123;</div><div class="line">            <span class="built_in">NSLog</span>(<span class="string">@"源信号被销毁, 这里进行收尾工作..."</span>);</div><div class="line">        &#125;];</div><div class="line">        </div><div class="line">    &#125;];</div><div class="line">    </div><div class="line">    <span class="comment">// 进行bind, 返回绑定信号</span></div><div class="line">    RACSignal *bindSignal = [sourceSignal bind:^RACSignalBindBlock _Nonnull&#123;</div><div class="line">        </div><div class="line">        RACSignalBindBlock bindBlock = ^RACSignal*(<span class="keyword">id</span> value, <span class="built_in">BOOL</span> *stop) &#123;</div><div class="line">            RACSignal *returnSignal = [RACSignal createSignal:^RACDisposable * _Nullable(<span class="keyword">id</span>&lt;RACSubscriber&gt;  _Nonnull subscriber) &#123;</div><div class="line">                </div><div class="line">                <span class="comment">// 修改值</span></div><div class="line">                <span class="built_in">NSString</span> *newValue = [<span class="built_in">NSString</span> stringWithFormat:<span class="string">@"%@%@"</span>, value, <span class="string">@"ReacticeCocoa bind"</span>];</div><div class="line">                </div><div class="line">                [subscriber sendNext:newValue];</div><div class="line">                </div><div class="line">                <span class="keyword">return</span> [RACDisposable disposableWithBlock:^&#123;</div><div class="line">                    <span class="built_in">NSLog</span>(<span class="string">@"返回信号被销毁, 这里进行收尾工作..."</span>);</div><div class="line">                &#125;];</div><div class="line">                </div><div class="line">            &#125;];</div><div class="line">            </div><div class="line">            <span class="keyword">return</span> returnSignal;</div><div class="line">        &#125;;</div><div class="line">        </div><div class="line">        <span class="keyword">return</span> bindBlock;</div><div class="line">    &#125;];</div><div class="line">    </div><div class="line">    </div><div class="line">    <span class="comment">// 订阅绑定信号</span></div><div class="line">    [bindSignal subscribeNext:^(<span class="keyword">id</span>  _Nullable x) &#123;</div><div class="line">        <span class="built_in">NSLog</span>(<span class="string">@"接收到信号传送的值: %@"</span>, x);</div><div class="line">    &#125; completed:^&#123;</div><div class="line">        <span class="built_in">NSLog</span>(<span class="string">@"信号发送完毕"</span>);</div><div class="line">    &#125;];</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>console输出:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">2016-05-01 18:18:20.874 ReactiveCocoaDemo[74310:880621] 接收到信号传送的值: hello, ReacticeCocoa bind</div><div class="line">2016-05-01 18:18:20.875 ReactiveCocoaDemo[74310:880621] 返回信号被销毁, 这里进行收尾工作...</div><div class="line">2016-05-01 18:18:20.875 ReactiveCocoaDemo[74310:880621] 源信号被销毁, 这里进行收尾工作...</div></pre></td></tr></table></figure>
+<p>从上面的结果可以看出,原本发送的”hello,”字符串,在 bind 方法中获取到发送的值, 进行修改重新发送一个新值 “hello,ReactiveCocoa bind”, 最后订阅 bindSignal,得到修改后的值.<br>bind是 ReactiveCocoa信号操作的核心,能够拿到上次信号发送的值,进行操作,传递给下一个信号发送,从基本的 map 方法就能体会.</p>
+<p>使用 bind的时候会涉及到三个信号:</p>
+<p>暂且命名为: 源信号(sourceSignal), 绑定信号(bindSignal), 返回信号(returnSignal)</p>
+<p>那么这个三个信号有什么作用呢?<br>源信号(signal): 提供数据源的信号, 通过这个信号的订阅者发送原始数据.<br>绑定信号(sourceSignal): 通过订阅它来接收处理后的数据.<br>返回信号(returnSignal): 很明显要想形成一个完整的流程缺少一个”桥梁”, 缺少发送处理后的数据的信号, 即通过返回信号能够发送处理后的数据.</p>
+<p>下面会讲解三者是怎么配合的.</p>
+<h3 id="bind-的实现原理"><a href="#bind-的实现原理" class="headerlink" title="bind 的实现原理"></a>bind 的实现原理</h3><p>进入 bind 方法的实现可以非常清晰的了解到 bind 的使用以及原理:</p>
+<blockquote>
+<p>-bind: should:</p>
+<ol>
+<li>Subscribe to the original signal of values.</li>
+<li>Any time the original signal sends a value, transform it using the binding block.</li>
+<li>If the binding block returns a signal, subscribe to it, and pass all of its values through to the subscriber as they’re received.</li>
+<li>If the binding block asks the bind to terminate, complete the original signal.</li>
+<li>When all signals complete, send completed to the subscriber.<br>If any signal sends an error at any point, send that to the subscriber.</li>
+</ol>
+</blockquote>
+<h4 id="创建绑定信号"><a href="#创建绑定信号" class="headerlink" title="创建绑定信号"></a>创建绑定信号</h4><p>调用 bind 方法会新创建一个 RACDynamicSignal信号, 这个信号就是绑定信号(bindSignal), 我们订阅绑定信号(bindSignal)就会执行绑定信号的 didSubscribe block.</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">- (RACSignal *)bind:(RACSignalBindBlock (^)(<span class="keyword">void</span>))block &#123;</div><div class="line">    <span class="built_in">NSCParameterAssert</span>(block != <span class="literal">NULL</span>);</div><div class="line">    <span class="keyword">return</span> [[RACSignal createSignal:^(<span class="keyword">id</span>&lt;RACSubscriber&gt; subscriber) &#123;</div><div class="line">        </div><div class="line">        <span class="comment">// ......</span></div><div class="line">        </div><div class="line">    &#125;] setNameWithFormat:<span class="string">@"[%@] -bind:"</span>, <span class="keyword">self</span>.name];</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>按照调用步骤:</p>
+<h4 id="订阅绑定信号-bindSignal"><a href="#订阅绑定信号-bindSignal" class="headerlink" title="订阅绑定信号(bindSignal)"></a>订阅绑定信号(bindSignal)</h4><figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="comment">// 订阅绑定信号</span></div><div class="line">[bindSignal subscribeNext:^(<span class="keyword">id</span>  _Nullable x) &#123;</div><div class="line">	<span class="built_in">NSLog</span>(<span class="string">@"接收到信号传送的值: %@"</span>, x);</div><div class="line">&#125;];</div></pre></td></tr></table></figure>
+<p>执行绑定信号(bindSignal)的didSubscribe block:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div></pre></td><td class="code"><pre><div class="line">RACDisposable *bindingDisposable = [<span class="keyword">self</span> subscribeNext:^(<span class="keyword">id</span> x) &#123;</div><div class="line">        <span class="comment">// Manually check disposal to handle synchronous errors.</span></div><div class="line">        <span class="keyword">if</span> (compoundDisposable.disposed) <span class="keyword">return</span>;</div><div class="line">        </div><div class="line">        <span class="built_in">BOOL</span> stop = <span class="literal">NO</span>;</div><div class="line">        <span class="keyword">id</span> signal = bindingBlock(x, &amp;stop);</div><div class="line">        </div><div class="line">        <span class="keyword">@autoreleasepool</span> &#123;</div><div class="line">            <span class="keyword">if</span> (signal != <span class="literal">nil</span>) addSignal(signal);</div><div class="line">            <span class="keyword">if</span> (signal == <span class="literal">nil</span> || stop) &#123;</div><div class="line">                [selfDisposable dispose];</div><div class="line">                completeSignal(selfDisposable);</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">    &#125; error:^(<span class="built_in">NSError</span> *error) &#123;</div><div class="line">        [compoundDisposable dispose];</div><div class="line">        [subscriber sendError:error];</div><div class="line">    &#125; completed:^&#123;</div><div class="line">        <span class="keyword">@autoreleasepool</span> &#123;</div><div class="line">            completeSignal(selfDisposable);</div><div class="line">        &#125;</div><div class="line">    &#125;];</div></pre></td></tr></table></figure>
+<p>注意self调用了 subscribeNext 方法, 这个 self 是 源信号(sourceSignal), 也就说, 在订阅绑定信号的时候会订阅源信号,此时就是调用原信号的 didSubscribe block 发送数据:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">[subscriber sendNext:<span class="string">@"hello, "</span>];</div></pre></td></tr></table></figure>
+<p>此时 x 的值为 “hello, “.</p>
+<h4 id="调用-bindBlock-得到返回信号-returnSignal"><a href="#调用-bindBlock-得到返回信号-returnSignal" class="headerlink" title="调用 bindBlock, 得到返回信号(returnSignal)"></a>调用 bindBlock, 得到返回信号(returnSignal)</h4><figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">id</span> signal = bindingBlock(x, &amp;stop);</div></pre></td></tr></table></figure>
+<p>3.调用 addSignal block:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">if</span> (signal != <span class="literal">nil</span>) </div><div class="line">	addSignal(signal);</div><div class="line"></div><div class="line"><span class="keyword">void</span> (^addSignal)(RACSignal *) = ^(RACSignal *signal) &#123;</div><div class="line">        OSAtomicIncrement32Barrier(&amp;signalCount);</div><div class="line">        </div><div class="line">        RACSerialDisposable *selfDisposable = [[RACSerialDisposable alloc] init];</div><div class="line">        [compoundDisposable addDisposable:selfDisposable];</div><div class="line">        </div><div class="line">        RACDisposable *disposable = [signal subscribeNext:^(<span class="keyword">id</span> x) &#123;</div><div class="line">            [subscriber sendNext:x];</div><div class="line">        &#125; error:^(<span class="built_in">NSError</span> *error) &#123;</div><div class="line">            [compoundDisposable dispose];</div><div class="line">            [subscriber sendError:error];</div><div class="line">        &#125; completed:^&#123;</div><div class="line">            <span class="keyword">@autoreleasepool</span> &#123;</div><div class="line">                completeSignal(selfDisposable);</div><div class="line">            &#125;</div><div class="line">        &#125;];</div><div class="line">        </div><div class="line">        selfDisposable.disposable = disposable;</div><div class="line">    &#125;;</div></pre></td></tr></table></figure>
+<p>在这个 block 中会订阅返回信号,那么就会调用返回信号的 didSubscribe block, 在这个 block中对原始数据进行处理, 然后发送处理后的数据, 也就是:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="comment">// 修改值</span></div><div class="line"><span class="built_in">NSString</span> *newValue = [<span class="built_in">NSString</span> stringWithFormat:<span class="string">@"%@%@"</span>, value, <span class="string">@"ReacticeCocoa bind"</span>];[subscriber sendNext:newValue];</div><div class="line">                </div><div class="line"><span class="keyword">return</span> [RACDisposable disposableWithBlock:^&#123;</div><div class="line">           <span class="built_in">NSLog</span>(<span class="string">@"返回信号被销毁, 这里进行收尾工作..."</span>);</div><div class="line">       &#125;];</div></pre></td></tr></table></figure>
+<h4 id="发送处理后数据"><a href="#发送处理后数据" class="headerlink" title="发送处理后数据"></a>发送处理后数据</h4><p>那么此时在 addSignal block中调用:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">[subscriber sendNext:x];</div></pre></td></tr></table></figure>
+<p>此时 x 的值就是经过返回信号处理后的数据,即”hello,ReactiveCocoa bind”. 注意此处的subscriber是绑定信号的订阅者, 使用绑定信号订阅者来发送数据,那么我们外面订阅绑定信号的地方就能收到数据:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="comment">// 订阅绑定信号</span></div><div class="line">[bindSignal subscribeNext:^(<span class="keyword">id</span>  _Nullable x) &#123;</div><div class="line">    <span class="built_in">NSLog</span>(<span class="string">@"接收到信号传送的值: %@"</span>, x);</div><div class="line">&#125;];</div></pre></td></tr></table></figure>
+<p>至此一个完成的发送数据流程走完, 源信号发送原始数据, 通过bind 方法传入返回信号,利用返回信号来处理原始数据,发送处理后的新数据, 在 bind 内部订阅返回信号,收到处理后的新数据, 使用绑定信号的订阅者来发送新数据, 那么我们在外面订阅绑定信号就能收到处理后的新数据.</p>
+<h3 id="总结一下"><a href="#总结一下" class="headerlink" title="总结一下"></a>总结一下</h3><ul>
+<li>bind涉及到三个信号: 源信号(signal), 绑定信号(bindSignal), 返回信号(returnSignal).</li>
+<li>通过这三个信号能做什么: 发送源数据, 接收处理后的数据, 发送处理后的数据.</li>
+<li>内部实现流程:<ul>
+<li>创建绑定信号, 保存didScribeBlock, 只要外面订阅绑定信号就会执行block.</li>
+<li>didScribeBlock中拿到返回处理数据的 block, bindingBlock.</li>
+<li>订阅源信号(signal), 拿到外面发送的源数据, 执行 bindingBlock处理源数据, 得到返回信号(returnSignal).</li>
+<li>订阅返回信号(returnSignal), 外面发送处理后的数据, 内部拿到处理后的数据, 拿绑定信号(bindSignal)的订阅者发送数据.</li>
+<li>外部订阅绑定信号的地方, 就能获取到处理的数据了, 完成的一个 Hook过程.</li>
+</ul>
+</li>
+</ul>
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Objective-C/" rel="tag"># Objective-C</a>
+          
+        </div>
+      
+
+      
+        
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2016/04/08/RunLoop浅析/" rel="next" title="RunLoop浅析">
+                <i class="fa fa-chevron-left"></i> RunLoop浅析
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+          
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/images/avatar.jpeg"
+               alt="跷脚啖牛肉" />
+          <p class="site-author-name" itemprop="name">跷脚啖牛肉</p>
+           
+              <p class="site-description motion-element" itemprop="description">格物致知</p>
+          
+        </div>
+        <nav class="site-state motion-element">
+        
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives">
+                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-categories">
+              <a href="/categories">
+                <span class="site-state-item-count">2</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-tags">
+              <a href="/tags">
+                <span class="site-state-item-count">7</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#使用-bind-方法"><span class="nav-number">1.</span> <span class="nav-text">使用 bind 方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#bind-的实现原理"><span class="nav-number">2.</span> <span class="nav-text">bind 的实现原理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#创建绑定信号"><span class="nav-number">2.1.</span> <span class="nav-text">创建绑定信号</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#订阅绑定信号-bindSignal"><span class="nav-number">2.2.</span> <span class="nav-text">订阅绑定信号(bindSignal)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#调用-bindBlock-得到返回信号-returnSignal"><span class="nav-number">2.3.</span> <span class="nav-text">调用 bindBlock, 得到返回信号(returnSignal)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#发送处理后数据"><span class="nav-number">2.4.</span> <span class="nav-text">发送处理后数据</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#总结一下"><span class="nav-number">3.</span> <span class="nav-text">总结一下</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy;  2015 - 
+  <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">跷脚啖牛肉</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Muse
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+
+  
+
+</body>
+</html>
